@@ -1,5 +1,6 @@
 # Constellation
 A physics-based constellation-like animation in JavaScript
+View it here: http://coreyshuman.com/projects/constellation/
 
 
 # Example Usage:
