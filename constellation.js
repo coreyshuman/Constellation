@@ -40,9 +40,12 @@ var fps = {
 	}	
 };
 
-var Point = function() {
+var Point = function(x, y) {
 	this.x = 0;
 	this.y = 0;
+	
+	if(!isNaN(x)) this.x = x;
+	if(!isNaN(y)) this.y = y;
 	
 	this.update = function(x,y) {
 		this.x = x;
@@ -188,7 +191,10 @@ var Constellation = function(userSettings) {
 	this.points = [];
 	this.canvasOffset = $('canvas').offset();
 	this.pointCountDivisor = 1920*1080 / this.settings.pointCount;
+	// stores cursor position 
 	this.cursor = new Point();
+	// store touch positions on mobile
+	this.touches = [];
 	
 	this.initPoints = function(cnt) {
 		this.points = [];
@@ -199,8 +205,12 @@ var Constellation = function(userSettings) {
 		} while (cnt--);
 	};
 
-	this.updateCursorInfluence = function(p) {
-		var dist = p.getDistanceFromPoint(this.cursor);
+	this.clearPointColor = function(p) {
+		p.color = this.settings.pointColor;
+	}
+	
+	this.updateCursorInfluence = function(p, pnt) {
+		var dist = p.getDistanceFromPoint(pnt);
 		var settings = this.settings;
 		var maxCursorPushLength = settings.maxCursorPushLength;
 		var maxCursorPushStrength = settings.maxCursorPushStrength;
@@ -208,8 +218,8 @@ var Constellation = function(userSettings) {
 		var maxDy = settings.maxDy;
 		var p_x = p.x;
 		var p_y = p.y;
-		var cursor_y = this.cursor.y;
-		var cursor_x = this.cursor.x;
+		var cursor_y = pnt.y;
+		var cursor_x = pnt.x;
 		var p_dx = p.dx;
 		var p_dy = p.dy;
 		var denom = maxCursorPushLength / maxCursorPushStrength;
@@ -237,10 +247,10 @@ var Constellation = function(userSettings) {
 			}
 			
 		}
-		else
-		{
-			p.color = this.settings.pointColor;
-		}
+		//else
+		//{
+		//	p.color = this.settings.pointColor;
+		//}
 	};
 		
 	this.updatePullFromNeighbors = function(point) {
@@ -332,7 +342,14 @@ var Constellation = function(userSettings) {
 			var p = points[i];
 			p.update(points, maxLineLength, maxX, maxY);
 			this.updatePullFromNeighbors(p);
-			this.updateCursorInfluence(p);
+			this.clearPointColor(p);
+			if(self.touches.length == 0) {
+				this.updateCursorInfluence(p, self.cursor);
+			} else {
+				for(var j = 0; j < self.touches.length; j++) {
+					this.updateCursorInfluence(p, self.touches[j]);
+				}
+			}
 		}
 	};
 	
@@ -344,10 +361,50 @@ var Constellation = function(userSettings) {
 		self.canvas.height = $(window).innerHeight();
 		self.initPoints(Math.floor(self.canvas.width * self.canvas.height / self.pointCountDivisor));
 		
-		$( document ).on( "mousemove", function( event ) {
-			self.cursor.update(event.pageX-self.canvasOffset.left, event.pageY-self.canvasOffset.top);
+		$( document ).on( "mousemove", function( evt ) {
+			self.cursor.update(evt.pageX-self.canvasOffset.left, evt.pageY-self.canvasOffset.top);
+		});
+		
+		// add support for touch events
+		document.body.addEventListener( "touchstart", function( evt ) {
+			//evt.preventDefault();
+			var ct = evt.changedTouches;
+			for(var i = 0; i < ct.length; i++) {
+				var touch = ct[i];
+				self.touches.push({ identifier: touch.identifier, x: touch.pageX-self.canvasOffset.left, y: touch.pageY-self.canvasOffset.top });
+			}
+		});
+		
+		document.body.addEventListener( "touchmove", function( evt ) {
+			evt.preventDefault();
+			var ct = evt.changedTouches;
+			for(var i = 0; i < ct.length; i++) {
+				var idx = self.findTouchById(ct[i].identifier);
+				var touch = ct[i];
+				if(idx >= 0) {
+					self.touches.splice(idx, 1, { identifier: touch.identifier, x: touch.pageX-self.canvasOffset.left, y: touch.pageY-self.canvasOffset.top });
+				}
+			}
+		});
+		
+		document.body.addEventListener( "touchend", function( evt ) {
+			evt.preventDefault();
+			var ct = evt.changedTouches;
+			for(var i = 0; i < ct.length; i++) {
+				var idx = self.findTouchById(ct[i].identifier);
+				if(idx >= 0) {
+					self.touches.splice(idx, 1);
+				}
+			}
+		});
+		
+		document.body.addEventListener( "touchcancel", function( evt ) {
+			for(var i = 0; i < self.touches.length; i++) {
+				self.touches.pop();
+			}
 		});
 
+		// redraw screen and points on a screen resize
 		$(window).bind("resize", function(e){
 			self.canvas.width = $(window).innerWidth();
 			self.canvas.height = $(window).innerHeight();
@@ -373,4 +430,16 @@ var Constellation = function(userSettings) {
 			document.getElementById(self.settings.fpsDiv).innerHTML = fps.getFPS();
 		}
 	};
+	
+	// function to match touch event with stored touch position
+	this.findTouchById = function(idToFind) {
+		for (var i = 0; i < this.touches.length; i++) {
+			var id = this.touches[i].identifier;
+
+			if (id == idToFind) {
+			  return i;
+			}
+		}
+		return -1;    // not found
+	}
 };
