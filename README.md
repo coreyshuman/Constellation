@@ -1,5 +1,5 @@
 # Constellation
-A physics-based constellation-like animation in JavaScript
+A physics-based constellation-like animation in JavaScript.
 View it here: http://coreyshuman.com/projects/constellation/
 
 
@@ -8,16 +8,7 @@ View it here: http://coreyshuman.com/projects/constellation/
 ```
 <html>
 	<head>
-		<script src="https://code.jquery.com/jquery-2.1.3.min.js"></script>
-		<script src="constellation.js"></script>
-		<script type="text/javascript">
-			$(function() {
-				var constellation = new Constellation({targetDiv: 'canvasdiv', fpsDiv: 'fps', showFps: true});
-				constellation.init();
-				constellation.start();
-			});
-		</script>
-		
+		<meta name="viewport" content="width=device-width, initial-scale=1">
 		<style>
 			* { margin:0; padding: 0;}
 			html, body { width:100%; height: 100%;}
@@ -31,6 +22,7 @@ View it here: http://coreyshuman.com/projects/constellation/
 				height: 20;
 				color: white;
 			}
+			
 		</style>
 	</head>
 	<body>
@@ -38,6 +30,17 @@ View it here: http://coreyshuman.com/projects/constellation/
 	  <div id="canvasdiv">
 		<div id="fps"></div>
 	  </div>
+	  
+	  <script src="https://code.jquery.com/jquery-2.1.3.min.js"></script>
+		<script src="constellation.js"></script>
+		<script type="text/javascript">
+			$(function() {
+				var constellation = new Constellation({targetDiv: 'canvasdiv', fpsDiv: 'fps', showFps: true});
+				constellation.init();
+				constellation.start();
+			});
+		</script>
 	</body>
 </html>
+
 ```
