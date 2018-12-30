@@ -27,9 +27,9 @@
 		<script src="constellation.js"></script>
 		<script type="text/javascript">
 			$(function() {
-				var constellation = new Constellation({targetDiv: 'canvasdiv', fpsDiv: 'fps', showFps: true});
-				constellation.init();
-				constellation.start();
+				window.constellation = new Constellation({targetDiv: 'canvasdiv', fpsDiv: 'fps', showFps: true});
+				window.constellation.init();
+				window.constellation.start();
 			});
 		</script>
 	</body>

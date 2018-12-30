@@ -2,7 +2,7 @@
 	Constellation.js 
 	A physics-based constellation-like animation in JavaScript.
 	
-    Copyright (C) 2015 Corey Shuman <ctshumancode@gmail.com>
+    Copyright (C) 2018 Corey Shuman <ctshumancode@gmail.com>
 	
     This program is free software: you can redistribute it and/or modify
     it under the terms of the GNU General Public License as published by
@@ -16,11 +16,7 @@
 
     You should have received a copy of the GNU General Public License
     along with this program.  If not, see <http://www.gnu.org/licenses/>.
-*/
-
-function getRandomInt(min, max) {
-	return Math.floor(Math.random() * (max - min + 1)) + min;
-}
+*/ 
 
 var fps = {
 	startTime : 0,
@@ -40,66 +36,66 @@ var fps = {
 	}	
 };
 
-var Point = function(x, y) {
-	this.x = 0;
-	this.y = 0;
-	
-	if(!isNaN(x)) this.x = x;
-	if(!isNaN(y)) this.y = y;
-	
-	this.update = function(x,y) {
+class Point {
+	constructor(x, y) {
+		if(!isNaN(x)) this.x = x;
+		if(!isNaN(y)) this.y = y;
+	}
+
+	update(x, y) {
 		this.x = x;
 		this.y = y;
-	};
-};
+	}
+}
 
 
 	/* Individual point entity, contains location, movement, and drawing functions */
-var ConstPoint = function(x, y, color, pointSize) {
-	this.x = x;
-	this.y = y;
-	this.color = color;
-	this.pointSize = pointSize;
-	this.dx = Math.random() * getRandomInt(-1,1);
-	this.dy = Math.random() * getRandomInt(-1,1);
-	this.neighbors = []; // array containing [point,distance] pairs
+class ConstPoint {
+	constructor(x, y, dx, dy, color, pointSize) {
+		this.x = x;
+		this.y = y;
+		this.color = color;
+		this.pointSize = pointSize;
+		this.dx = dx; 
+		this.dy = dy; 
+		this.neighbors = []; // array containing {point,distance} objects
+	}
 	
-	this.update = function(allPoints, maxDistance, maxX, maxY) {
+	update(allPoints, maxDistance, maxX, maxY) {
 		this.updateLocation(maxX, maxY);
 		this.updateNeighborList(allPoints, maxDistance);
 	};
 	
-	this.draw = function(ctx, lineColor, maxLineLength) {
+	draw (ctx, lineColor, lineWidth, maxLineLength) {
 		this.drawPoint(ctx);
-		this.drawLines(ctx, lineColor, maxLineLength);
+		this.drawLines(ctx, lineColor, lineWidth, maxLineLength);
 	};
 	
-	this.drawPoint = function(ctx) {
+	drawPoint(ctx) {
 		ctx.fillStyle = this.color;
-		//ctx.fillRect(Math.floor(this.x), Math.floor(this.y), PointSize, PointSize)
 		ctx.globalAlpha = 0.9;
 		ctx.beginPath();
 		ctx.arc(this.x, this.y, this.pointSize, 0, 2*Math.PI);
 		ctx.fill();
 	};
 	
-	this.drawLines = function(ctx, lineColor, maxLineLength) {
+	drawLines(ctx, lineColor, lineWidth, maxLineLength) {
 		var i = this.neighbors.length;
-		var neighbors = this.neighbors;
+		const neighbors = this.neighbors;
 		ctx.strokeStyle = lineColor;
-		ctx.lineWidth = 2;
+		ctx.lineWidth = lineWidth;
 		while(i--)
 		{
-			var p = neighbors[i];
-			ctx.globalAlpha = (maxLineLength - p[1]) / maxLineLength;
+			const pd = neighbors[i];
+			ctx.globalAlpha = (maxLineLength - pd.distance) / maxLineLength;
 			ctx.beginPath();
 			ctx.moveTo(this.x, this.y);
-			ctx.lineTo(p[0].x, p[0].y);
+			ctx.lineTo(pd.p.x, pd.p.y);
 			ctx.stroke();
 		}
 	};
 	
-	this.updateLocation = function(maxX, maxY) {
+	updateLocation(maxX, maxY) {
 		this.x += this.dx;
 		this.y += this.dy;
 		
@@ -126,7 +122,7 @@ var ConstPoint = function(x, y, color, pointSize) {
 		if(this.dy < -0.5) this.dy += 0.01;
 	};
 	
-	this.updateNeighborList= function(allPoints, maxDistance) {
+	updateNeighborList(allPoints, maxDistance) {
 		var i;
 		this.neighbors = [];
 		for(i=0; i<allPoints.length; i++)
@@ -137,161 +133,157 @@ var ConstPoint = function(x, y, color, pointSize) {
 				continue;
 			}
 			
-			var dist = this.getDistanceFromPoint(p);
+			const dist = this.getDistanceFromPoint(p);
 			
 			if(dist < maxDistance)
 			{
-				this.neighbors.push([p,dist]);
+				this.neighbors.push({p, distance: dist});
 			}
 		}
 	};
 	
-	
-	
-	this.getDistanceFromPoint = function(p) {
-		var x = p.x, y = p.y;
-		return Math.sqrt( (x-=this.x)*x + (y-=this.y)*y );
+	getDistanceFromPoint(p) {
+		const x = p.x - this.x;
+		const y = p.y - this.y;
+		return Math.sqrt( x*x + y*y );
 	};
+
+	getAngleFromPoint(p) {
+		return Math.atan2(this.y - p.y, this.x - p.x);
+	}
 };
 
-var Constellation = function(userSettings) {
-	var self = this;
-	var lastPhysicsUpdateTime = 0;
-	
-	this.settings = {
-		targetDiv: 'canvas',
-		canvasId: 'canvas',
-		fpsDiv: '',
-		showFps: false,
-		pointCount: 400,
-		maxDx: 5,
-		maxDy: 5,
-		maxLineLength: 60,
-		maxPushDist: 10,
-		maxPushStrength: 1/8,
-		minPullDist: 55,
-		maxPullStrength: 1/16,
-		maxCursorPushLength: 60,
-		maxCursorPushStrength: 1/2,
-		lineColor: 'lightblue',
-		pointColor: 'teal',
-		pointSize: 3,
-		screenBlur: 0.6,
-		backgroundColor: 'black'
-	};
-	
-	if (userSettings) {
-		$.extend(this.settings, userSettings);
+class Constellation {
+	constructor(userSettings) {
+		this.this = this;
+		this.lastPhysicsUpdateTime = 0;
+		this.running = false;
+		
+		this.settings = {
+			targetDiv: 'canvas',
+			canvasId: 'canvas',
+			fpsDiv: '',
+			showFps: false,
+			pointDensity: 30,
+			maxDx: 5,
+			maxDy: 5,
+			maxLineLength: 60,
+			maxPushDist: 5,
+			maxPushStrength: .10,
+			minPullDist: 55,
+			maxPullStrength: .06,
+			maxCursorPushLength: 60,
+			maxCursorPushStrength: .3,
+			lineColor: 'lightblue',
+			pointColor: 'teal',
+			pointInteractColor: 'red',
+			pointSize: 3,
+			lineSize: 2,
+			screenBlur: 0.6,
+			backgroundColor: 'black'
+		};
+		
+		if (userSettings) {
+			for(var prop in userSettings) {
+				if(this.settings.hasOwnProperty(prop)) {
+					this.settings[prop] = userSettings[prop];
+				}
+			}
+		}
+		
+		this.canvas = document.createElement('canvas');
+		document.getElementById(this.settings.targetDiv).appendChild(this.canvas);
+		//this.canvas = document.getElementById(this.settings.canvasId);
+		this.context = this.canvas.getContext('2d');
+		this.points = [];
+		this.canvasOffset = this.getOffset(this.canvas);
+		// stores cursor position 
+		this.cursor = new Point();
+		// store touch positions on mobile
+		this.touches = [];
 	}
 	
-	this.canvas = document.createElement('canvas');
-	document.getElementById(this.settings.targetDiv).appendChild(this.canvas);
-	//this.canvas = document.getElementById(this.settings.canvasId);
-	this.context = this.canvas.getContext('2d');
-	this.points = [];
-	this.canvasOffset = $('canvas').offset();
-	this.pointCountDivisor = 1920*1080 / this.settings.pointCount;
-	// stores cursor position 
-	this.cursor = new Point();
-	// store touch positions on mobile
-	this.touches = [];
-	
-	this.initPoints = function(cnt) {
+	initPoints(cnt) {
 		this.points = [];
-		var pointColor = this.settings.pointColor;
-		var pointSize = this.settings.pointSize;
+		const pointColor = this.settings.pointColor;
+		const pointSize = this.settings.pointSize;
 		do {
-			this.points.push(new ConstPoint(getRandomInt(1,this.canvas.width-1), getRandomInt(1,this.canvas.height-1), pointColor, pointSize));
+			this.points.push(new ConstPoint(
+				this.getRandomInt(1,this.canvas.width-1), 
+				this.getRandomInt(1,this.canvas.height-1), 
+				Math.random() * this.getRandomInt(-1,1), 
+				Math.random() * this.getRandomInt(-1,1), 
+				pointColor, pointSize));
 		} while (cnt--);
 	};
 
-	this.clearPointColor = function(p) {
+	clearPointColor(p) {
 		p.color = this.settings.pointColor;
 	}
 	
-	this.updateCursorInfluence = function(p, pnt) {
-		var dist = p.getDistanceFromPoint(pnt);
-		var settings = this.settings;
-		var maxCursorPushLength = settings.maxCursorPushLength;
-		var maxCursorPushStrength = settings.maxCursorPushStrength;
-		var maxDx = settings.maxDx;
-		var maxDy = settings.maxDy;
-		var p_x = p.x;
-		var p_y = p.y;
-		var cursor_y = pnt.y;
-		var cursor_x = pnt.x;
-		var p_dx = p.dx;
-		var p_dy = p.dy;
-		var denom = maxCursorPushLength / maxCursorPushStrength;
-		
+	updateCursorInfluence(p, pCursor) {
+		const dist = p.getDistanceFromPoint(pCursor);
+		const settings = this.settings;
+		const maxCursorPushLength = settings.maxCursorPushLength;
+		const maxCursorPushStrength = settings.maxCursorPushStrength;
+		const maxDx = settings.maxDx;
+		const maxDy = settings.maxDy;
+
 		if(dist < maxCursorPushLength)
 		{
-			p.color = 'red';
+			const pushForce = maxCursorPushStrength * ((maxCursorPushLength - dist) / maxCursorPushLength);
+			const angle = p.getAngleFromPoint(pCursor);
+			
+			p.color = settings.pointInteractColor;
+			p.dx += Math.cos(angle) * pushForce;
+			p.dy += Math.sin(angle) * pushForce;
 
-			if(p_x < cursor_x)
-			{
-				if(p_dx > -maxDx) p.dx -= (cursor_x - p_x) / denom;
-			}
-			else
-			{
-				if(p_dx < maxDx) p.dx += (p_x - cursor_x) / denom;
-			}
-			
-			if(p_y < cursor_y)
-			{
-				if(p_dy > -maxDy) p.dy -= (cursor_y - p_y) / denom;
-			}
-			else
-			{
-				if(p_dy < maxDy) p.dy += (p_y - cursor_y) / denom;
-			}
-			
+			if(p.dx < -maxDx) p.dx = - maxDx;
+			if(p.dx > maxDx) p.dx = maxDx;
+			if(p.dy < -maxDy) p.dy = - maxDy;
+			if(p.dy > maxDy) p.dy = maxDy;
 		}
-		//else
-		//{
-		//	p.color = this.settings.pointColor;
-		//}
 	};
 		
-	this.updatePullFromNeighbors = function(point) {
-		var neighbors = point.neighbors;
-		var settings = this.settings;
-		var minPullDist = settings.minPullDist;
-		var maxPushDist = settings.maxPushDist;
-		var maxDx = settings.maxDx;
-		var maxDy = settings.maxDy;
-		var maxLineLength = settings.maxLineLength;
-		var maxPullStrength = settings.maxPullStrength;
-		var maxPushStrength = settings.maxPushStrength;
+	updatePullFromNeighbors(point) {
+		const neighbors = point.neighbors;
+		const settings = this.settings;
+		const minPullDist = settings.minPullDist;
+		const maxPushDist = settings.maxPushDist;
+		const maxDx = settings.maxDx;
+		const maxDy = settings.maxDy;
+		const maxLineLength = settings.maxLineLength;
+		const maxPullStrength = settings.maxPullStrength;
+		const maxPushStrength = settings.maxPushStrength;
 		var i = neighbors.length;
-		var denom_pull = (maxLineLength - minPullDist) / maxPullStrength;
-		var denom_push = maxPushDist / maxPushStrength;
+		const denom_pull = (maxLineLength - minPullDist) / maxPullStrength;
+		const denom_push = maxPushDist / maxPushStrength;
 
 
 		
-		while( i--) {
-			var p = point.neighbors[i][0];
-			var p_x = p.x;
-			var p_y = p.y;
-			var point_x = point.x;
-			var point_y = point.y;
-			var point_dx = point.dx;
-			var point_dy = point.dy;
+		while(i--) {
+			const p = point.neighbors[i].p;
+			const p_x = p.x;
+			const p_y = p.y;
+			const point_x = point.x;
+			const point_y = point.y;
+			const point_dx = point.dx;
+			const point_dy = point.dy;
 			
 			if(point_x < p_x) {
-				if(p_x - point_x > minPullDist) {
+				if(p_x - point_x >= minPullDist) {
 					if(point_dx < maxDx) point.dx += (p_x - point_x - minPullDist) / denom_pull;
 				}
-				else if(p_x - point_x < maxPushDist) {
+				else if(p_x - point_x <= maxPushDist) {
 					if(point_dx > -maxDx) point.dx -= (maxPushDist - (p_x - point_x)) / denom_pull;
 				}
 			}
 			else
 			{
-				if(point_x - p_x > minPullDist) {
+				if(point_x - p_x >= minPullDist) {
 					if(point_dx > -maxDx) point.dx -= (point_x - p_x - minPullDist) / denom_pull;
 				}
-				else if(point_x - p_x < maxPushDist) {
+				else if(point_x - p_x <= maxPushDist) {
 					if(point_dx < maxDx) point.dx += (maxPushDist - (point_x - p_x)) / denom_push;
 				}
 			}
@@ -300,39 +292,40 @@ var Constellation = function(userSettings) {
 				if(p_y - point_y > minPullDist) {
 					if(point_dy < maxDx) point.dy += (p_y - point_y - minPullDist) / denom_pull;
 				}
-				else if(p_y - point_y < maxPushDist) {
+				else if(p_y - point_y <= maxPushDist) {
 					if(point_dy > -maxDy) point.dy -= (maxPushDist - (p_y - point_y)) / denom_push;
 				}
 			}
 			else
 			{
-				if(point_y - p_y > minPullDist) {
+				if(point_y - p_y >= minPullDist) {
 					if(point_dy > -maxDx) point.dy -= (point_y - p_y - minPullDist) / denom_pull;
 				}
-				else if(point_y - p_y < maxPushDist) {
+				else if(point_y - p_y <= maxPushDist) {
 					if(point_dy < maxDy) point.dy += (maxPushDist - (point_y - p_y)) / denom_push;
 				}
 			}
 		}
 	};
 	
-	this.draw = function() {
-		var ctx = this.context;
-		var points = this.points;
-		var lineColor = this.settings.lineColor;
-		var maxLineLength = this.settings.maxLineLength;
+	draw() {
+		const ctx = this.context;
+		const points = this.points;
+		const lineColor = this.settings.lineColor;
+		const lineWidth = this.settings.lineWidth;
+		const maxLineLength = this.settings.maxLineLength;
 		ctx.globalAlpha = 1 - this.settings.screenBlur;
-		ctx.fillStyle = 'black';
+		ctx.fillStyle = this.settings.backgroundColor;
 		ctx.fillRect(0,0,this.canvas.width, this.canvas.height);
 		var i = this.points.length;
 		
 		while(i--) {
 			var p = points[i];
-			p.draw(ctx, lineColor, maxLineLength);
+			p.draw(ctx, lineColor, lineWidth, maxLineLength);
 		} 
 	};
 
-	this.update = function(){
+	update(){
 		var points = this.points;
 		var maxLineLength = this.settings.maxLineLength;
 		var maxX = this.canvas.width;
@@ -343,27 +336,27 @@ var Constellation = function(userSettings) {
 			p.update(points, maxLineLength, maxX, maxY);
 			this.updatePullFromNeighbors(p);
 			this.clearPointColor(p);
-			if(self.touches.length == 0) {
-				this.updateCursorInfluence(p, self.cursor);
+			if(this.touches.length == 0) {
+				this.updateCursorInfluence(p, this.cursor);
 			} else {
-				for(var j = 0; j < self.touches.length; j++) {
-					this.updateCursorInfluence(p, self.touches[j]);
+				for(var j = 0; j < this.touches.length; j++) {
+					this.updateCursorInfluence(p, this.touches[j]);
 				}
 			}
 		}
 	};
 	
 	
-	this.init = function() {
-		this.context.fillStyle = 'black';
+	init() {
+		this.context.fillStyle = this.settings.backgroundColor;
 		this.context.fillRect(0,0,this.canvas.width, this.canvas.height);
-		self.canvas.width = $(window).innerWidth();
-		self.canvas.height = $(window).innerHeight();
-		self.initPoints(Math.floor(self.canvas.width * self.canvas.height / self.pointCountDivisor));
+		this.canvas.width = window.innerWidth;
+		this.canvas.height = window.innerHeight;
+		this.initPoints(Math.floor((this.canvas.width * this.canvas.height) / 100000 * this.settings.pointDensity));
 		
-		$( document ).on( "mousemove", function( evt ) {
-			self.cursor.update(evt.pageX-self.canvasOffset.left, evt.pageY-self.canvasOffset.top);
-		});
+		document.body.addEventListener( "mousemove", function( evt ) {
+			this.cursor.update(evt.pageX-this.canvasOffset.left, evt.pageY-this.canvasOffset.top);
+		}.bind(this));
 		
 		// add support for touch events
 		document.body.addEventListener( "touchstart", function( evt ) {
@@ -371,68 +364,75 @@ var Constellation = function(userSettings) {
 			var ct = evt.changedTouches;
 			for(var i = 0; i < ct.length; i++) {
 				var touch = ct[i];
-				self.touches.push({ identifier: touch.identifier, x: touch.pageX-self.canvasOffset.left, y: touch.pageY-self.canvasOffset.top });
+				this.touches.push({ identifier: touch.identifier, x: touch.pageX-this.canvasOffset.left, y: touch.pageY-this.canvasOffset.top });
 			}
-		});
+		}.bind(this));
 		
 		document.body.addEventListener( "touchmove", function( evt ) {
 			evt.preventDefault();
 			var ct = evt.changedTouches;
 			for(var i = 0; i < ct.length; i++) {
-				var idx = self.findTouchById(ct[i].identifier);
+				var idx = this.findTouchById(ct[i].identifier);
 				var touch = ct[i];
 				if(idx >= 0) {
-					self.touches.splice(idx, 1, { identifier: touch.identifier, x: touch.pageX-self.canvasOffset.left, y: touch.pageY-self.canvasOffset.top });
+					this.touches.splice(idx, 1, { identifier: touch.identifier, x: touch.pageX-this.canvasOffset.left, y: touch.pageY-this.canvasOffset.top });
 				}
 			}
-		});
+		}.bind(this));
 		
 		document.body.addEventListener( "touchend", function( evt ) {
 			evt.preventDefault();
 			var ct = evt.changedTouches;
 			for(var i = 0; i < ct.length; i++) {
-				var idx = self.findTouchById(ct[i].identifier);
+				var idx = this.findTouchById(ct[i].identifier);
 				if(idx >= 0) {
-					self.touches.splice(idx, 1);
+					this.touches.splice(idx, 1);
 				}
 			}
-		});
+		}.bind(this));
 		
 		document.body.addEventListener( "touchcancel", function( evt ) {
-			for(var i = 0; i < self.touches.length; i++) {
-				self.touches.pop();
+			for(var i = 0; i < this.touches.length; i++) {
+				this.touches.pop();
 			}
-		});
+		}.bind(this));
 
 		// redraw screen and points on a screen resize
-		$(window).bind("resize", function(e){
-			self.canvas.width = $(window).innerWidth();
-			self.canvas.height = $(window).innerHeight();
-			self.initPoints(Math.floor(self.canvas.width * self.canvas.height / self.pointCountDivisor));
-		});
+		window.addEventListener("resize", function(e) {
+			this.canvas.width = $(window).innerWidth();
+			this.canvas.height = $(window).innerHeight();
+			this.initPoints(Math.floor(this.canvas.width * this.canvas.height / this.pointCountDivisor));
+		}.bind(this));
 	};
 	
-	this.start = function() {
+	start() {
+		this.running = true;
 		this.run();
 	};
+
+	stop() {
+		this.running = false;
+	}
 	
-	this.run = function() {
+	run() {
 		var currentTime = new Date().getTime();
 		
-		requestAnimationFrame(self.run);
-		if(currentTime - lastPhysicsUpdateTime > 33) {
-			self.update();
-			lastPhysicsUpdateTime = currentTime;
+		if(this.running) {
+			requestAnimationFrame(this.run.bind(this));
 		}
-		self.draw();
+		//if(currentTime - this.lastPhysicsUpdateTime > 33) {
+			this.update();
+			//this.lastPhysicsUpdateTime = currentTime;
+		//}
+		this.draw();
 		
-		if(self.settings.showFps) {
-			document.getElementById(self.settings.fpsDiv).innerHTML = fps.getFPS();
+		if(this.settings.showFps) {
+			document.getElementById(this.settings.fpsDiv).innerHTML = fps.getFPS();
 		}
 	};
 	
 	// function to match touch event with stored touch position
-	this.findTouchById = function(idToFind) {
+	findTouchById(idToFind) {
 		for (var i = 0; i < this.touches.length; i++) {
 			var id = this.touches[i].identifier;
 
@@ -441,5 +441,19 @@ var Constellation = function(userSettings) {
 			}
 		}
 		return -1;    // not found
+	}
+
+	// helper function to get element offset
+	getOffset(el) {
+		const rect = el.getBoundingClientRect();
+		return {
+			left: rect.left + window.scrollX,
+			top: rect.top + window.scrollY
+		};
+	}
+
+	// helper function to get a random integer between two values
+	getRandomInt(min, max) {
+		return Math.floor(Math.random() * (max - min + 1)) + min;
 	}
 };
