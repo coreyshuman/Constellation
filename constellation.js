@@ -116,10 +116,10 @@ class ConstPoint {
 			this.dx = -this.dx;
 		}
 		
-		if(this.dx > 0.5) this.dx -= 0.01;
-		if(this.dy > 0.5) this.dy -= 0.01;
-		if(this.dx < -0.5) this.dx += 0.01;
-		if(this.dy < -0.5) this.dy += 0.01;
+		if(this.dx > 0.5) this.dx -= 0.03;
+		if(this.dy > 0.5) this.dy -= 0.03;
+		if(this.dx < -0.5) this.dx += 0.03;
+		if(this.dy < -0.5) this.dy += 0.03;
 	};
 	
 	updateNeighborList(allPoints, maxDistance) {
@@ -158,20 +158,23 @@ class Constellation {
 		this.this = this;
 		this.lastPhysicsUpdateTime = 0;
 		this.running = false;
+		this.pointCount = 0;
 		
 		this.settings = {
-			targetDiv: 'canvas',
+			canvasDiv: 'canvas',
 			canvasId: 'canvas',
+			canvasWidth: -1,
+			canvasHeight: -1,
 			fpsDiv: '',
 			showFps: false,
 			pointDensity: 30,
 			maxDx: 5,
 			maxDy: 5,
 			maxLineLength: 60,
-			maxPushDist: 5,
-			maxPushStrength: .10,
-			minPullDist: 55,
-			maxPullStrength: .06,
+			repelRange: [0, 20],
+			repelForce: [.1, 0],
+			attractRange: [15, 55],
+			attractForce: [0, .001],
 			maxCursorPushLength: 60,
 			maxCursorPushStrength: .3,
 			lineColor: 'lightblue',
@@ -192,7 +195,7 @@ class Constellation {
 		}
 		
 		this.canvas = document.createElement('canvas');
-		document.getElementById(this.settings.targetDiv).appendChild(this.canvas);
+		document.getElementById(this.settings.canvasDiv).appendChild(this.canvas);
 		//this.canvas = document.getElementById(this.settings.canvasId);
 		this.context = this.canvas.getContext('2d');
 		this.points = [];
@@ -248,16 +251,13 @@ class Constellation {
 	updatePullFromNeighbors(point) {
 		const neighbors = point.neighbors;
 		const settings = this.settings;
-		const minPullDist = settings.minPullDist;
-		const maxPushDist = settings.maxPushDist;
+		const repelRange = settings.repelRange;
+		const repelForce = settings.repelForce;
+		const attractRange = settings.attractRange;
+		const attractForce = settings.attractForce;
 		const maxDx = settings.maxDx;
 		const maxDy = settings.maxDy;
-		const maxLineLength = settings.maxLineLength;
-		const maxPullStrength = settings.maxPullStrength;
-		const maxPushStrength = settings.maxPushStrength;
 		var i = neighbors.length;
-		const denom_pull = (maxLineLength - minPullDist) / maxPullStrength;
-		const denom_push = maxPushDist / maxPushStrength;
 
 
 		
@@ -269,42 +269,26 @@ class Constellation {
 			const point_y = point.y;
 			const point_dx = point.dx;
 			const point_dy = point.dy;
-			
-			if(point_x < p_x) {
-				if(p_x - point_x >= minPullDist) {
-					if(point_dx < maxDx) point.dx += (p_x - point_x - minPullDist) / denom_pull;
-				}
-				else if(p_x - point_x <= maxPushDist) {
-					if(point_dx > -maxDx) point.dx -= (maxPushDist - (p_x - point_x)) / denom_pull;
-				}
+
+			const dist = point.neighbors[i].distance;
+			const angle = p.getAngleFromPoint(point);
+
+			if(dist >= repelRange[0] && dist <= repelRange[1]) {
+				const rForce = this.linearMap(dist, repelForce, repelRange);
+				p.dx += Math.cos(angle) * rForce;
+				p.dy += Math.sin(angle) * rForce;
 			}
-			else
-			{
-				if(point_x - p_x >= minPullDist) {
-					if(point_dx > -maxDx) point.dx -= (point_x - p_x - minPullDist) / denom_pull;
-				}
-				else if(point_x - p_x <= maxPushDist) {
-					if(point_dx < maxDx) point.dx += (maxPushDist - (point_x - p_x)) / denom_push;
-				}
+
+			if(dist >= attractRange[0] && dist <= attractRange[1]) {
+				const aForce = this.linearMap(dist, attractForce, attractRange);
+				p.dx -= Math.cos(angle) * aForce;
+				p.dy -= Math.sin(angle) * aForce;
 			}
-			
-			if(point_y < p_y) {
-				if(p_y - point_y > minPullDist) {
-					if(point_dy < maxDx) point.dy += (p_y - point_y - minPullDist) / denom_pull;
-				}
-				else if(p_y - point_y <= maxPushDist) {
-					if(point_dy > -maxDy) point.dy -= (maxPushDist - (p_y - point_y)) / denom_push;
-				}
-			}
-			else
-			{
-				if(point_y - p_y >= minPullDist) {
-					if(point_dy > -maxDx) point.dy -= (point_y - p_y - minPullDist) / denom_pull;
-				}
-				else if(point_y - p_y <= maxPushDist) {
-					if(point_dy < maxDy) point.dy += (maxPushDist - (point_y - p_y)) / denom_push;
-				}
-			}
+
+			if(p.dx < -maxDx) p.dx = - maxDx;
+			if(p.dx > maxDx) p.dx = maxDx;
+			if(p.dy < -maxDy) p.dy = - maxDy;
+			if(p.dy > maxDy) p.dy = maxDy;
 		}
 	};
 	
@@ -350,9 +334,9 @@ class Constellation {
 	init() {
 		this.context.fillStyle = this.settings.backgroundColor;
 		this.context.fillRect(0,0,this.canvas.width, this.canvas.height);
-		this.canvas.width = window.innerWidth;
-		this.canvas.height = window.innerHeight;
-		this.initPoints(Math.floor((this.canvas.width * this.canvas.height) / 100000 * this.settings.pointDensity));
+		this.canvas.width = (this.settings.canvasWidth === -1) ? window.innerWidth : this.settings.canvasWidth;
+		this.canvas.height = (this.settings.canvasHeight === -1) ? window.innerHeight : this.settings.canvasHeight;
+		this.initPoints(this.getPointCount());
 		
 		document.body.addEventListener( "mousemove", function( evt ) {
 			this.cursor.update(evt.pageX-this.canvasOffset.left, evt.pageY-this.canvasOffset.top);
@@ -399,9 +383,9 @@ class Constellation {
 
 		// redraw screen and points on a screen resize
 		window.addEventListener("resize", function(e) {
-			this.canvas.width = $(window).innerWidth();
-			this.canvas.height = $(window).innerHeight();
-			this.initPoints(Math.floor(this.canvas.width * this.canvas.height / this.pointCountDivisor));
+			this.canvas.width = (this.settings.canvasWidth === -1) ? window.innerWidth : this.settings.canvasWidth;
+			this.canvas.height = (this.settings.canvasHeight === -1) ? window.innerHeight : this.settings.canvasHeight;
+			this.initPoints(this.getPointCount());
 		}.bind(this));
 	};
 	
@@ -430,6 +414,11 @@ class Constellation {
 			document.getElementById(this.settings.fpsDiv).innerHTML = fps.getFPS();
 		}
 	};
+
+	// calculate point count based on density and screen size
+	getPointCount() {
+		return Math.max(Math.floor((this.canvas.width * this.canvas.height) / 100000 * this.settings.pointDensity), 10);
+	}
 	
 	// function to match touch event with stored touch position
 	findTouchById(idToFind) {
@@ -455,5 +444,10 @@ class Constellation {
 	// helper function to get a random integer between two values
 	getRandomInt(min, max) {
 		return Math.floor(Math.random() * (max - min + 1)) + min;
+	}
+
+	// function to find the point on a line (y=mx+b)
+	linearMap(value, yRange, xRange) {
+		return (value - xRange[0]) * (yRange[1] - yRange[0]) / (xRange[1] - xRange[0]) + yRange[0];
 	}
 };

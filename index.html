@@ -1,35 +1,368 @@
 <html>
 	<head>
 		<meta name="viewport" content="width=device-width, initial-scale=1">
+		<link rel="stylesheet" href="https://code.jquery.com/ui/1.12.1/themes/base/jquery-ui.css">
 		<style>
-			* { margin:0; padding: 0;}
-			html, body { width:100%; height: 100%;}
-			canvas { display: block;}
+			* { 
+				margin:0; 
+				padding: 0;
+			}
+			html, body { 
+				width: 100%; 
+				height: 100%;
+				color: gainsboro;
+			}
+			canvas { 
+				display: block;
+			}
+			h1 {
+				margin-bottom: 10px;
+			}
 			
-			#fps {
+			#fps-div {
 				position: fixed;
-				top: 10;
-				left: 10;
-				width: 50;
-				height: 20;
+				top: 10px;
+				left: 10px;
+				width: 50px;
+				height: 20px;
 				color: white;
+			}
+
+			#flex-container {
+				display: flex;
+				flex-direction: row;
+				height: 100%;
+			}
+
+			#control-container {
+				width: 320px;
+				background-color: black;
+			}
+
+			#color-container {
+				display: flex;
+				flex-direction: row;
+				width: 100%;
+			}
+
+			.color-box {
+				flex-grow: 1;
+			}
+
+			#canvas-div {
+				flex-grow: 1;
+			}
+
+			#controls {
+				display:inline-block;
+				margin-top: 20%;
+				width: 300px;
+				height: 500px;
+				padding: 5px;
+				background-color:rgb(12, 38, 39);
+				border-radius: 8px;
+				border: solid 2px gainsboro;
+			}
+
+			div.slider {
+				margin: 10px 5px;
+			}
+
+			input.highlight {
+				background-color: rgb(12, 38, 39);
+				border: none;
+				font-weight: bold;
+				color: turquoise;
+			}
+
+			input[type="button"] {
+				background-color: teal;
+				color: gainsboro;
+				padding: 2px 4px;
+				border-radius: 5px;
 			}
 			
 		</style>
 	</head>
 	<body>
 	  
-	  <div id="canvasdiv">
-		<div id="fps"></div>
-	  </div>
+	  <div id="flex-container">
+			<div id="control-container">
+				<div id="controls">
+					<h1>Demo Presets</h1>
+					<input type="button" id="button-default" value="Default" >
+					<input type="button" id="button-grid" value="Grid" >
+					<input type="button" id="button-consume" value="Consume" >
+					<input type="button" id="button-mosh" value="Water" >
+					<input type="button" id="button-fractal" value="Fractal" >
+					<input type="button" id="button-web" value="Web" >
+					<br>
+					<br>
+					<h1>Controls</h1>
+					<p>
+						<label for="text-attract-range">Attraction Range:</label>
+						<input type="text" id="text-attract-range" readonly class="highlight" >
+					</p>
+					<div id="slider-attract-range" class="slider"></div>
+					<p>
+						<label for="text-attract-force">Attraction Force:</label>
+						<input type="text" id="text-attract-force" readonly class="highlight" >
+						<label>x10-4</label>
+					</p>
+					<div id="slider-attract-force" class="slider"></div>
+					<p>
+						<label for="text-repel-range">Repel Range:</label>
+						<input type="text" id="text-repel-range" readonly class="highlight" >
+					</p>
+					<div id="slider-repel-range" class="slider"></div>
+					<p>
+						<label for="text-repel-force">Repel Force:</label>
+						<input type="text" id="text-repel-force" readonly class="highlight" >
+						<label>x10-4</label>
+					</p>
+					<div id="slider-repel-force" class="slider"></div>
+					<p>
+						<label for="text-line-distance">Line Distance:</label>
+						<input type="text" id="text-line-distance" readonly class="highlight" >
+					</p>
+					<div id="slider-line-distance" class="slider"></div>
+					<div id="color-container">
+						<div class="color-box">
+							<p><label>Back Color</label></p>
+							<input type="color" id="input-color-background" value="#000000" >
+						</div>
+						<div class="color-box">
+							<p><label>Point Color</label></p>
+							<input type="color" id="input-color-point" value="#008080" >
+						</div>
+						<div class="color-box">
+							<p><label>Line Color</label></p>
+							<input type="color" id="input-color-line" value="#ADD8E6" >
+						</div>
+					</div>
+				</div>
+
+			</div>
+
+			<div id="canvas-div">
+				<div id="fps-div"></div>
+
+			</div>
+		</div>
 	  
-	  <script src="https://code.jquery.com/jquery-2.1.3.min.js"></script>
+		<script src="https://code.jquery.com/jquery-2.1.3.min.js"></script>
+		<script src="https://code.jquery.com/ui/1.12.1/jquery-ui.js"></script>
 		<script src="constellation.js"></script>
 		<script type="text/javascript">
 			$(function() {
-				window.constellation = new Constellation({targetDiv: 'canvasdiv', fpsDiv: 'fps', showFps: true});
+				window.constellation = new Constellation({
+					canvasDiv: 'canvas-div', 
+					fpsDiv: 'fps-div', showFps: true, 
+					canvasWidth: $("#canvas-div").innerWidth(), canvasHeight: $("#canvas-div").innerHeight()});
 				window.constellation.init();
 				window.constellation.start();
+
+				$( "#slider-attract-range" ).slider({
+					range: true,
+					min: 0,
+					max: 1000,
+					values: [15, 55],
+					slide: function( event, ui ) {
+						setTextFromSlider("#text-attract-range", "#slider-attract-range", ui.values);
+						setSetting("attractRange", ui.values);
+					}
+				});
+				setTextFromSlider("#text-attract-range", "#slider-attract-range");
+
+				$( "#slider-attract-force" ).slider({
+					range: true,
+					min: 0,
+					max: 10000,
+					values: [0, 10],
+					slide: function( event, ui ) {
+						setTextFromSlider("#text-attract-force", "#slider-attract-force", ui.values);
+						setSetting("attractForce", [ui.values[0]/10000, ui.values[1]/10000]);
+					}
+				});
+				setTextFromSlider("#text-attract-force", "#slider-attract-force");
+
+				$( "#slider-repel-range" ).slider({
+					range: true,
+					min: 0,
+					max: 1000,
+					values: [0, 20],
+					slide: function( event, ui ) {
+						setTextFromSlider("#text-repel-range", "#slider-repel-range", ui.values);
+						setSetting("repelRange", ui.values);
+					}
+				});
+				setTextFromSlider("#text-repel-range", "#slider-repel-range");
+
+				$( "#slider-repel-force" ).slider({
+					range: true,
+					min: 0,
+					max: 10000,
+					values: [0, 1000],
+					slide: function( event, ui ) {
+						setTextFromSlider("#text-repel-force", "#slider-repel-force", ui.values);
+						setSetting("repelForce", [ui.values[1]/10000, ui.values[0]/10000]);
+					}
+				});
+				setTextFromSlider("#text-repel-force", "#slider-repel-force");
+				
+				$( "#slider-line-distance" ).slider({
+					range: false,
+					min: 0,
+					max: 1000,
+					value: 60,
+					slide: function( event, ui ) {
+						setTextFromSlider("#text-line-distance", "#slider-line-distance", ui.value);
+						setSetting("maxLineLength", ui.value);
+					}
+				});
+				setTextFromSlider("#text-line-distance", "#slider-line-distance");
+
+				$("#input-color-background").change(function(e) {
+					setSetting("backgroundColor", this.value);
+				});
+
+				$("#input-color-point").change(function(e) {
+					setSetting("pointColor", this.value);
+				});
+
+				$("#input-color-line").change(function(e) {
+					setSetting("lineColor", this.value);
+				});
+
+				$("#button-default").click(function() {
+					setPreset({
+						attractRange: [15, 55], 
+						attractForce: [0,10], 
+						repelRange: [0, 20], 
+						repelForce: [0, 1000], 
+						lineLength: 60, 
+						backgroundColor: "#000000", 
+						pointColor: "#008080", 
+						lineColor: "#ADD8E6"
+					});
+				});
+
+				$("#button-consume").click(function() {
+					setPreset({
+						attractRange: [10, 300], 
+						attractForce: [1000,5000], 
+						repelRange: [0, 20], 
+						repelForce: [0, 1000], 
+						lineLength: 60, 
+						backgroundColor: "#8b0000", 
+						pointColor: "#ff5733", 
+						lineColor: "#ffd700"
+					});
+				});
+
+				$("#button-grid").click(function() {
+					setPreset({
+						attractRange: [10, 300], 
+						attractForce: [0,0], 
+						repelRange: [0, 500], 
+						repelForce: [1000, 1000], 
+						lineLength: 60, 
+						backgroundColor: "#000000", 
+						pointColor: "#0096ff", 
+						lineColor: "#00fdff"
+					});
+	
+				});
+
+				$("#button-mosh").click(function() {
+					setPreset({
+						attractRange: [0, 500], 
+						attractForce: [5000,6000], 
+						repelRange: [0, 500], 
+						repelForce: [7000, 9000], 
+						lineLength: 100, 
+						backgroundColor: "#0096ff", 
+						pointColor: "#0096ff", 
+						lineColor: "#00fdff"
+					});
+				});
+
+				$("#button-fractal").click(function() {
+					setPreset({
+						attractRange: [0, 500], 
+						attractForce: [5000,6000], 
+						repelRange: [0, 500], 
+						repelForce: [7000, 9000], 
+						lineLength: 300, 
+						backgroundColor: "#ffffff", 
+						pointColor: "#ff9300", 
+						lineColor: "#9437ff"
+					});
+				});
+
+				$("#button-web").click(function() {
+					setPreset({
+						attractRange: [15, 55], 
+						attractForce: [0,10], 
+						repelRange: [0, 20], 
+						repelForce: [0, 1000], 
+						lineLength: 250, 
+						backgroundColor: "#000000", 
+						pointColor: "#008080", 
+						lineColor: "#ADD8E6"
+					});
+				});
+
+				
+
+				function setPreset(settings) {
+					setInterface(settings);
+					setSetting("attractRange", settings.attractRange);
+					setSetting("attractForce", [settings.attractForce[0]/10000, settings.attractForce[1]/10000]);
+					setSetting("repelRange", settings.repelRange);
+					setSetting("repelForce", [settings.repelForce[1]/10000, settings.repelForce[0]/10000]);
+					setSetting("maxLineLength", settings.lineLength);
+					setSetting("backgroundColor", settings.backgroundColor);
+					setSetting("pointColor", settings.pointColor);
+					setSetting("lineColor", settings.lineColor);
+					setTextFromSlider("#text-attract-range", "#slider-attract-range");
+					setTextFromSlider("#text-attract-force", "#slider-attract-force");
+					setTextFromSlider("#text-repel-range", "#slider-repel-range");
+					setTextFromSlider("#text-repel-force", "#slider-repel-force");
+					setTextFromSlider("#text-line-distance", "#slider-line-distance");
+				}
+
+				function setInterface(settings) {
+					$("#slider-attract-range").slider("option", "values", settings.attractRange );
+					$("#slider-attract-force").slider("option", "values", settings.attractForce );
+					$("#slider-repel-range").slider("option", "values", settings.repelRange );
+					$("#slider-repel-force").slider("option", "values", settings.repelForce );
+					$("#slider-line-distance").slider("option", "value", settings.lineLength );
+					$("#input-color-background").val(settings.backgroundColor);
+					$("#input-color-point").val(settings.pointColor);
+					$("#input-color-line").val(settings.lineColor);
+				}
+
+				function setTextFromSlider(inputId, sliderId, values) {
+					const slider = $( sliderId );
+					if(typeof values === "number" || !slider.slider("values").length) {
+						const v1 = values ? values : slider.slider("value");
+						console.log('v1', v1)
+						$( inputId ).val( "" + v1 );
+					} else {
+						const v1 = values ? values[0] : slider.slider("values", 0);
+						const v2 = values ? values[1] : slider.slider("values", 1);
+						$( inputId ).val( v1 + " - " + v2 );
+					}
+				}
+
+				function setSetting(settingName, value) {
+					console.log(settingName, value)
+					//const slider = $( sliderId );
+					//const v1 = values ? values[0] : slider.slider("values", 0);
+					//const v2 = values ? values[1] : slider.slider("values", 1);
+					window.constellation.settings[settingName] = value;
+				}
 			});
 		</script>
 	</body>
