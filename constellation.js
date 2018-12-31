@@ -58,6 +58,9 @@ class ConstPoint {
 		this.pointSize = pointSize;
 		this.dx = dx; 
 		this.dy = dy; 
+		this.hasTarget = false;
+		this.target = new Point();
+		this.targetForce = 0;
 		this.neighbors = []; // array containing {point,distance} objects
 	}
 	
@@ -99,6 +102,15 @@ class ConstPoint {
 	};
 	
 	updateLocation(dt, maxX, maxY) {
+		if(this.hasTarget) {
+			const distance = this.getDistanceFromPoint(this.target);
+			if(distance > 5) {
+				const angle = this.getAngleFromPoint(this.target);
+				this.dx -= Math.cos(angle) * this.targetForce;
+				this.dy -= Math.sin(angle) * this.targetForce;
+			}
+		}
+
 		this.x += this.dx * dt;
 		this.y += this.dy * dt;
 		
@@ -260,7 +272,9 @@ class Constellation {
 				Math.random() * this.getRandomInt(-1,1), 
 				pointColor, pointSize));
 		} while (cnt--);
-	};
+
+		this.letter(this.points);
+	}
 
 	clearPointColor(p) {
 		p.color = this.settings.pointColor;
@@ -288,7 +302,7 @@ class Constellation {
 			if(p.dy < -maxDy) p.dy = - maxDy;
 			if(p.dy > maxDy) p.dy = maxDy;
 		}
-	};
+	}
 		
 	updatePullFromNeighbors(point) {
 		const neighbors = point.neighbors;
@@ -325,7 +339,7 @@ class Constellation {
 			if(p.dy < -maxDy) p.dy = - maxDy;
 			if(p.dy > maxDy) p.dy = maxDy;
 		}
-	};
+	}
 	
 	draw() {
 		const ctx = this.context;
@@ -342,7 +356,7 @@ class Constellation {
 			var p = points[i];
 			p.draw(ctx, lineColor, lineWidth, maxLineLength);
 		} 
-	};
+	}
 
 	update(dt){
 		const points = this.points;
@@ -369,7 +383,74 @@ class Constellation {
 				}
 			}
 		}
-	};
+	}
+
+	letter(points) {
+		var count = 0;
+		const xStart = 100;
+		const yStart = 100;
+		const scale = 20;
+		const c = [ 0, 1, 1, 1, 1, 0,
+					1, 0, 0, 0, 0, 0,
+					1, 0, 0, 0, 0, 0,
+					1, 0, 0, 0, 0, 0,
+					1, 0, 0, 0, 0, 0,
+					1, 0, 0, 0, 0, 0,
+					0, 1, 1, 1, 1, 0,
+					0, 0, 0, 0, 0, 0
+					];
+		const o = [ 0, 1, 1, 1, 1, 0,
+					1, 0, 0, 0, 0, 1,
+					1, 0, 0, 0, 0, 1,
+					1, 0, 0, 0, 0, 1,
+					1, 0, 0, 0, 0, 1,
+					1, 0, 0, 0, 0, 1,
+					0, 1, 1, 1, 1, 0,
+					0, 0, 0, 0, 0, 0
+			];
+		const r = [ 0, 1, 1, 1, 0, 0,
+					1, 0, 0, 0, 1, 0,
+					1, 0, 0, 0, 1, 0,
+					1, 0, 1, 1, 0, 0,
+					1, 1, 1, 0, 0, 0,
+					1, 0, 0, 1, 0, 0,
+					1, 0, 0, 0, 1, 0,
+					0, 0, 0, 0, 0, 0
+			];
+		const e = [ 1, 1, 1, 1, 1, 0,
+					1, 0, 0, 0, 0, 0,
+					1, 0, 0, 0, 0, 0,
+					1, 1, 1, 1, 1, 0,
+					1, 0, 0, 0, 0, 0,
+					1, 0, 0, 0, 0, 0,
+					1, 1, 1, 1, 1, 0,
+					0, 0, 0, 0, 0, 0
+			];
+		const y = [ 0, 0, 0, 0, 0, 0,
+					1, 0, 0, 0, 0, 1,
+					0, 1, 0, 0, 1, 0,
+					0, 0, 1, 1, 0, 0,
+					0, 0, 1, 0, 0, 0,
+					0, 1, 0, 0, 0, 0,
+					1, 0, 0, 0, 0, 0,
+					0, 0, 0, 0, 0, 0
+			];
+
+		const letters = [c, o, r, e, y];
+
+		// get dots for letter
+		for(const ydx in letters) {
+			for(const idx in letters[ydx]) {
+				if(letters[ydx][idx]) {
+					const p = points[count++];
+					p.target.x = (idx%6) * scale + xStart + ydx*7*scale;
+					p.target.y = Math.floor(idx/6) * scale + yStart;
+					p.targetForce = 5;
+					p.hasTarget = true;
+				}
+			}
+		}
+	}
 	
 	
 	init() {
@@ -434,7 +515,7 @@ class Constellation {
 		this.running = true;
 		this.lastFrameTime = Date.now();
 		this.run();
-	};
+	}
 
 	stop() {
 		this.running = false;
@@ -453,7 +534,7 @@ class Constellation {
 		if(this.settings.showFps) {
 			document.getElementById(this.settings.fpsDiv).innerHTML = fps.getFPS();
 		}
-	};
+	}
 
 	// calculate point count based on density and screen size
 	getPointCount() {
