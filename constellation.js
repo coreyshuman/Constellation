@@ -23,12 +23,12 @@ var fps = {
 	frameNumber : 0,
 	getFPS : function(){
 		this.frameNumber++;
-		var d = new Date().getTime(),
+		const d = Date.now(),
 			currentTime = ( d - this.startTime ) / 1000,
 			result = Math.floor( ( this.frameNumber / currentTime ) );
 
 		if( currentTime > 1 ){
-			this.startTime = new Date().getTime();
+			this.startTime = Date.now();
 			this.frameNumber = 0;
 		}
 		return result;
@@ -61,8 +61,8 @@ class ConstPoint {
 		this.neighbors = []; // array containing {point,distance} objects
 	}
 	
-	update(allPoints, maxDistance, maxX, maxY) {
-		this.updateLocation(maxX, maxY);
+	update(dt, allPoints, maxDistance, maxX, maxY) {
+		this.updateLocation(dt, maxX, maxY);
 		this.updateNeighborList(allPoints, maxDistance);
 	};
 	
@@ -87,6 +87,9 @@ class ConstPoint {
 		while(i--)
 		{
 			const pd = neighbors[i];
+			if(pd.distance > maxLineLength) {
+				continue;
+			}
 			ctx.globalAlpha = (maxLineLength - pd.distance) / maxLineLength;
 			ctx.beginPath();
 			ctx.moveTo(this.x, this.y);
@@ -95,9 +98,9 @@ class ConstPoint {
 		}
 	};
 	
-	updateLocation(maxX, maxY) {
-		this.x += this.dx;
-		this.y += this.dy;
+	updateLocation(dt, maxX, maxY) {
+		this.x += this.dx * dt;
+		this.y += this.dy * dt;
 		
 		if(this.y < 0) {
 			this.y = 0;
@@ -116,10 +119,10 @@ class ConstPoint {
 			this.dx = -this.dx;
 		}
 		
-		if(this.dx > 0.5) this.dx -= 0.03;
-		if(this.dy > 0.5) this.dy -= 0.03;
-		if(this.dx < -0.5) this.dx += 0.03;
-		if(this.dy < -0.5) this.dy += 0.03;
+		if(this.dx > 0.5) this.dx -= (0.03 * dt);
+		if(this.dy > 0.5) this.dy -= (0.03 * dt);
+		if(this.dx < -0.5) this.dx += (0.03 * dt);
+		if(this.dy < -0.5) this.dy += (0.03 * dt);
 	};
 	
 	updateNeighborList(allPoints, maxDistance) {
@@ -156,7 +159,7 @@ class ConstPoint {
 class Constellation {
 	constructor(userSettings) {
 		this.this = this;
-		this.lastPhysicsUpdateTime = 0;
+		this.lastFrameTime = Date.now();
 		this.running = false;
 		this.pointCount = 0;
 		
@@ -173,7 +176,7 @@ class Constellation {
 			maxLineLength: 60,
 			repelRange: [0, 20],
 			repelForce: [.1, 0],
-			attractRange: [15, 55],
+			attractRange: [15, 30],
 			attractForce: [0, .001],
 			maxCursorPushLength: 60,
 			maxCursorPushStrength: .3,
@@ -204,6 +207,45 @@ class Constellation {
 		this.cursor = new Point();
 		// store touch positions on mobile
 		this.touches = [];
+	}
+
+	updateSetting(settingName, value) {
+		if(value === undefined || value === null) throw "Value cannot be null or undefined.";
+		switch(settingName) {
+			case "canvasWidth":
+			case "canvasHeight":
+				if(value < 1) value = -1;
+				break;
+			case "showFps":
+				value = !!value;
+				if(value && !fpsDiv) throw "fpsDiv must be configured before enabling 'showFps'";
+				break;
+			case "pointDensity":
+				if(value < 0) value = 0;
+				break;
+			case "maxLineLength":
+				if(value < 0) value = 0;
+				break;
+			case "repelRange":
+			case "attractRange":
+				if(value.length !== 2) throw `Value for ${settingName} must be an array with two integers.`;
+				if(value[1] < value[0]) throw `Second value for ${settingName} must be large or equal to the first value.`;
+				break;
+			case "repelForce":
+			case "attractForce":
+				if(value.length !== 2) throw `Value for ${settingName} must be an array with two integers.`;
+				break;
+			case "lineColor":
+			case "backgroundColor":
+			case "pointColor":
+				break;
+			default: throw "Invalid setting name: " + settingName;
+		}
+		this.settings[settingName] = value;
+
+		if(["pointDensity"].includes(settingName)) {
+			this.initPoints(this.getPointCount());
+		}
 	}
 	
 	initPoints(cnt) {
@@ -260,15 +302,8 @@ class Constellation {
 		var i = neighbors.length;
 
 
-		
 		while(i--) {
 			const p = point.neighbors[i].p;
-			const p_x = p.x;
-			const p_y = p.y;
-			const point_x = point.x;
-			const point_y = point.y;
-			const point_dx = point.dx;
-			const point_dy = point.dy;
 
 			const dist = point.neighbors[i].distance;
 			const angle = p.getAngleFromPoint(point);
@@ -309,18 +344,24 @@ class Constellation {
 		} 
 	};
 
-	update(){
-		var points = this.points;
-		var maxLineLength = this.settings.maxLineLength;
-		var maxX = this.canvas.width;
-		var maxY = this.canvas.height;
+	update(dt){
+		const points = this.points;
+		const maxX = this.canvas.width;
+		const maxY = this.canvas.height;
+		const set = this.settings;
 		var i = points.length;
+
+		const maxDistance = Math.max(set.maxLineLength, set.repelRange[1], set.attractRange[1]);
+
+		// scale dt for 60 fps
+		dt /= 16.667;
+
 		while(i--) {
 			var p = points[i];
-			p.update(points, maxLineLength, maxX, maxY);
+			p.update(dt, points, maxDistance, maxX, maxY);
 			this.updatePullFromNeighbors(p);
 			this.clearPointColor(p);
-			if(this.touches.length == 0) {
+			if(this.touches.length === 0) {
 				this.updateCursorInfluence(p, this.cursor);
 			} else {
 				for(var j = 0; j < this.touches.length; j++) {
@@ -338,12 +379,12 @@ class Constellation {
 		this.canvas.height = (this.settings.canvasHeight === -1) ? window.innerHeight : this.settings.canvasHeight;
 		this.initPoints(this.getPointCount());
 		
-		document.body.addEventListener( "mousemove", function( evt ) {
+		document.body.addEventListener("mousemove", function( evt ) {
 			this.cursor.update(evt.pageX-this.canvasOffset.left, evt.pageY-this.canvasOffset.top);
 		}.bind(this));
 		
 		// add support for touch events
-		document.body.addEventListener( "touchstart", function( evt ) {
+		document.body.addEventListener("touchstart", function( evt ) {
 			//evt.preventDefault();
 			var ct = evt.changedTouches;
 			for(var i = 0; i < ct.length; i++) {
@@ -352,7 +393,7 @@ class Constellation {
 			}
 		}.bind(this));
 		
-		document.body.addEventListener( "touchmove", function( evt ) {
+		document.body.addEventListener("touchmove", function( evt ) {
 			evt.preventDefault();
 			var ct = evt.changedTouches;
 			for(var i = 0; i < ct.length; i++) {
@@ -364,7 +405,7 @@ class Constellation {
 			}
 		}.bind(this));
 		
-		document.body.addEventListener( "touchend", function( evt ) {
+		document.body.addEventListener("touchend", function( evt ) {
 			evt.preventDefault();
 			var ct = evt.changedTouches;
 			for(var i = 0; i < ct.length; i++) {
@@ -375,7 +416,7 @@ class Constellation {
 			}
 		}.bind(this));
 		
-		document.body.addEventListener( "touchcancel", function( evt ) {
+		document.body.addEventListener("touchcancel", function( evt ) {
 			for(var i = 0; i < this.touches.length; i++) {
 				this.touches.pop();
 			}
@@ -391,6 +432,7 @@ class Constellation {
 	
 	start() {
 		this.running = true;
+		this.lastFrameTime = Date.now();
 		this.run();
 	};
 
@@ -399,15 +441,13 @@ class Constellation {
 	}
 	
 	run() {
-		var currentTime = new Date().getTime();
-		
+		const dt = Date.now() - this.lastFrameTime;
+		this.lastFrameTime = Date.now();
 		if(this.running) {
 			requestAnimationFrame(this.run.bind(this));
 		}
-		//if(currentTime - this.lastPhysicsUpdateTime > 33) {
-			this.update();
-			//this.lastPhysicsUpdateTime = currentTime;
-		//}
+		
+		this.update(dt);
 		this.draw();
 		
 		if(this.settings.showFps) {

@@ -57,7 +57,7 @@
 				display:inline-block;
 				margin-top: 20%;
 				width: 300px;
-				height: 500px;
+				
 				padding: 5px;
 				background-color:rgb(12, 38, 39);
 				border-radius: 8px;
@@ -79,6 +79,7 @@
 				background-color: teal;
 				color: gainsboro;
 				padding: 2px 4px;
+				margin-top: 4px;
 				border-radius: 5px;
 			}
 			
@@ -96,9 +97,17 @@
 					<input type="button" id="button-mosh" value="Water" >
 					<input type="button" id="button-fractal" value="Fractal" >
 					<input type="button" id="button-web" value="Web" >
+					<input type="button" id="button-snow" value="Storm" >
+					<input type="button" id="button-win98" value="Lines" >
+					<input type="button" id="button-embryo" value="Sun" >
 					<br>
 					<br>
 					<h1>Controls</h1>
+					<p>
+						<label for="text-point-density">Density:</label>
+						<input type="text" id="text-point-density" readonly class="highlight" >
+					</p>
+					<div id="slider-point-density" class="slider"></div>
 					<p>
 						<label for="text-attract-range">Attraction Range:</label>
 						<input type="text" id="text-attract-range" readonly class="highlight" >
@@ -162,11 +171,23 @@
 				window.constellation.init();
 				window.constellation.start();
 
+				$( "#slider-point-density" ).slider({
+					range: false,
+					min: 0,
+					max: 400,
+					value: 30,
+					slide: function( event, ui ) {
+						setTextFromSlider("#text-point-density", "#slider-point-density", ui.value);
+						setSetting("pointDensity", ui.value);
+					}
+				});
+				setTextFromSlider("#text-point-density", "#slider-point-density");
+
 				$( "#slider-attract-range" ).slider({
 					range: true,
 					min: 0,
 					max: 1000,
-					values: [15, 55],
+					values: [15, 30],
 					slide: function( event, ui ) {
 						setTextFromSlider("#text-attract-range", "#slider-attract-range", ui.values);
 						setSetting("attractRange", ui.values);
@@ -236,8 +257,9 @@
 
 				$("#button-default").click(function() {
 					setPreset({
-						attractRange: [15, 55], 
-						attractForce: [0,10], 
+						pointDensity: 30,
+						attractRange: [15, 30], 
+						attractForce: [0, 10], 
 						repelRange: [0, 20], 
 						repelForce: [0, 1000], 
 						lineLength: 60, 
@@ -249,11 +271,12 @@
 
 				$("#button-consume").click(function() {
 					setPreset({
-						attractRange: [10, 300], 
-						attractForce: [1000,5000], 
-						repelRange: [0, 20], 
-						repelForce: [0, 1000], 
-						lineLength: 60, 
+						pointDensity: 30,
+						attractRange: [10, 120], 
+						attractForce: [200, 300], 
+						repelRange: [0, 80], 
+						repelForce: [200, 600], 
+						lineLength: 20, 
 						backgroundColor: "#8b0000", 
 						pointColor: "#ff5733", 
 						lineColor: "#ffd700"
@@ -262,10 +285,11 @@
 
 				$("#button-grid").click(function() {
 					setPreset({
-						attractRange: [10, 300], 
-						attractForce: [0,0], 
-						repelRange: [0, 500], 
-						repelForce: [1000, 1000], 
+						pointDensity: 30,
+						attractRange: [0, 0], 
+						attractForce: [0, 0], 
+						repelRange: [0, 60], 
+						repelForce: [0, 5000], 
 						lineLength: 60, 
 						backgroundColor: "#000000", 
 						pointColor: "#0096ff", 
@@ -276,11 +300,12 @@
 
 				$("#button-mosh").click(function() {
 					setPreset({
-						attractRange: [0, 500], 
-						attractForce: [5000,6000], 
-						repelRange: [0, 500], 
-						repelForce: [7000, 9000], 
-						lineLength: 100, 
+						pointDensity: 16,
+						attractRange: [0, 75], 
+						attractForce: [0, 1024], 
+						repelRange: [0, 90], 
+						repelForce: [1400, 4100], 
+						lineLength: 90, 
 						backgroundColor: "#0096ff", 
 						pointColor: "#0096ff", 
 						lineColor: "#00fdff"
@@ -289,6 +314,7 @@
 
 				$("#button-fractal").click(function() {
 					setPreset({
+						pointDensity: 30,
 						attractRange: [0, 500], 
 						attractForce: [5000,6000], 
 						repelRange: [0, 500], 
@@ -302,6 +328,7 @@
 
 				$("#button-web").click(function() {
 					setPreset({
+						pointDensity: 30,
 						attractRange: [15, 55], 
 						attractForce: [0,10], 
 						repelRange: [0, 20], 
@@ -313,10 +340,53 @@
 					});
 				});
 
+				$("#button-snow").click(function() {
+					setPreset({
+						pointDensity: 60,
+						attractRange: [0, 0], 
+						attractForce: [0, 0], 
+						repelRange: [0, 70], 
+						repelForce: [4000, 6000], 
+						lineLength: 0, 
+						backgroundColor: "#cccccc", 
+						pointColor: "#ffffff", 
+						lineColor: "#000000"
+					});
+				});
+
+				$("#button-win98").click(function() {
+					setPreset({
+						pointDensity: 1,
+						attractRange: [0, 0], 
+						attractForce: [0, 0], 
+						repelRange: [0, 0], 
+						repelForce: [0, 0], 
+						lineLength: 800, 
+						backgroundColor: "#000000", 
+						pointColor: "#000000", 
+						lineColor: "#0080ff"
+					});
+				});
+
+				$("#button-embryo").click(function() {
+					setPreset({
+						pointDensity: 20,
+						attractRange: [0, 500], 
+						attractForce: [4500, 6000], 
+						repelRange: [0, 500], 
+						repelForce: [4500, 7500], 
+						lineLength: 115, 
+						backgroundColor: "#f1f480", 
+						pointColor: "#f1d150", 
+						lineColor: "#d0b600"
+					});
+				});
+
 				
 
 				function setPreset(settings) {
 					setInterface(settings);
+					setSetting("pointDensity", settings.pointDensity);
 					setSetting("attractRange", settings.attractRange);
 					setSetting("attractForce", [settings.attractForce[0]/10000, settings.attractForce[1]/10000]);
 					setSetting("repelRange", settings.repelRange);
@@ -325,6 +395,7 @@
 					setSetting("backgroundColor", settings.backgroundColor);
 					setSetting("pointColor", settings.pointColor);
 					setSetting("lineColor", settings.lineColor);
+					setTextFromSlider("#text-point-density", "#slider-point-density");
 					setTextFromSlider("#text-attract-range", "#slider-attract-range");
 					setTextFromSlider("#text-attract-force", "#slider-attract-force");
 					setTextFromSlider("#text-repel-range", "#slider-repel-range");
@@ -333,6 +404,7 @@
 				}
 
 				function setInterface(settings) {
+					$("#slider-point-density").slider("option", "value", settings.pointDensity );
 					$("#slider-attract-range").slider("option", "values", settings.attractRange );
 					$("#slider-attract-force").slider("option", "values", settings.attractForce );
 					$("#slider-repel-range").slider("option", "values", settings.repelRange );
@@ -361,7 +433,7 @@
 					//const slider = $( sliderId );
 					//const v1 = values ? values[0] : slider.slider("values", 0);
 					//const v2 = values ? values[1] : slider.slider("values", 1);
-					window.constellation.settings[settingName] = value;
+					window.constellation.updateSetting(settingName, value);
 				}
 			});
 		</script>
