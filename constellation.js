@@ -24,7 +24,6 @@ class FPS {
   static frameNumber = 0;
 
   static getFPS() {
-    this.frameNumber++;
     const d = Date.now();
     const currentTime = (d - this.startTime) / 1000;
     const result = Math.floor(this.frameNumber / currentTime);
@@ -34,6 +33,10 @@ class FPS {
       this.frameNumber = 0;
     }
     return result;
+  }
+
+  static incrementFrameCount() {
+    this.frameNumber++;
   }
 }
 
@@ -84,11 +87,6 @@ class DrawnPoint {
     const neighbors = this.neighbors;
     ctx.strokeStyle = lineColor;
     ctx.lineWidth = lineWidth;
-
-    // limit line draws for performance
-    if (i > 5) {
-      i = 5;
-    }
 
     while (i--) {
       const pd = neighbors[i];
@@ -174,22 +172,21 @@ class Constellation {
     this.pointCount = 0;
 
     this.settings = {
-      canvasDiv: "canvas",
-      canvasId: "canvas",
+      canvasContainer: "",
       canvasWidth: -1,
       canvasHeight: -1,
-      fpsDiv: null,
+      fpsElement: null,
       showFps: false,
       pointDensity: 30,
-      maxDx: 5,
-      maxDy: 5,
+      maxVelocityX: 5,
+      maxVelocityY: 5,
       maxLineLength: 60,
-      repelRange: [0, 20],
-      repelForce: [0.1, 0],
-      attractRange: [15, 30],
-      attractForce: [0, 0.001],
-      maxCursorPushLength: 60,
-      maxCursorPushStrength: 0.3,
+      repelDistanceRange: [0, 20],
+      repelForceRange: [0.1, 0],
+      attractDistanceRange: [15, 30],
+      attractForceRange: [0, 0.001],
+      maxInteractForceDistance: 60,
+      maxInteractForceStrength: 0.3,
       lineColor: "lightblue",
       pointColor: "teal",
       pointInteractColor: "red",
@@ -208,7 +205,9 @@ class Constellation {
     }
 
     this.canvas = document.createElement("canvas");
-    document.getElementById(this.settings.canvasDiv).appendChild(this.canvas);
+    document
+      .getElementById(this.settings.canvasContainer)
+      .appendChild(this.canvas);
     this.context = this.canvas.getContext("2d");
     this.points = [];
     this.canvasOffset = this.getOffset(this.canvas);
@@ -221,15 +220,16 @@ class Constellation {
   defaultSettings() {
     const defaultSettings = {
       pointDensity: 30,
-      maxDx: 5,
-      maxDy: 5,
+      maxVelocityX: 5,
+      maxVelocityY: 5,
       maxLineLength: 60,
-      repelRange: [0, 20],
-      repelForce: [0.1, 0],
-      attractRange: [15, 30],
-      attractForce: [0, 0.001],
-      maxCursorPushLength: 60,
-      maxCursorPushStrength: 0.3,
+      repelDistanceRange: [0, 20],
+      repelForceRange: [0.1, 0],
+      attractDistanceRange: [15, 30],
+      attractForceRange: [0, 0.001],
+      interactMode: "repel",
+      maxInteractForceDistance: 60,
+      maxInteractForceStrength: 0.3,
       lineColor: "lightblue",
       pointColor: "teal",
       pointInteractColor: "red",
@@ -255,9 +255,9 @@ class Constellation {
         break;
       case "showFps":
         value = !!value;
-        if (value && !this.this.settings.fpsDiv) {
+        if (value && !this.this.settings.fpsElement) {
           throw new Error(
-            `fpsDiv must be configured before enabling 'showFps'`
+            `fpsElement must be configured before enabling 'showFps'`
           );
         }
         break;
@@ -271,8 +271,8 @@ class Constellation {
           value = 0;
         }
         break;
-      case "repelRange":
-      case "attractRange":
+      case "repelDistanceRange":
+      case "attractDistanceRange":
         if (value.length !== 2) {
           throw new Error(
             `Value for ${settingName} must be an array with two integers.`
@@ -284,8 +284,8 @@ class Constellation {
           );
         }
         break;
-      case "repelForce":
-      case "attractForce":
+      case "repelForceRange":
+      case "attractForceRange":
         if (value.length !== 2) {
           throw new Error(
             `Value for ${settingName} must be an array with two integers.`
@@ -303,9 +303,7 @@ class Constellation {
     this.settings[settingName] = value;
 
     if (["pointDensity"].includes(settingName)) {
-      this.initPoints(
-        this.getPointCountForGivenDensity(this.settings.pointDensity)
-      );
+      this.updatePointCount();
     }
   }
 
@@ -314,6 +312,21 @@ class Constellation {
     const pointColor = this.settings.pointColor;
     const pointSize = this.settings.pointSize;
     this.this.addPoints(count, pointColor, pointSize);
+  }
+
+  updatePointCount() {
+    const pointCountDiff =
+      this.points.length -
+      this.getPointCountForGivenDensity(this.settings.pointDensity);
+    if (pointCountDiff > 0) {
+      this.removePoints(pointCountDiff);
+    } else {
+      this.addPoints(
+        -pointCountDiff,
+        this.settings.pointColor,
+        this.settings.pointSize
+      );
+    }
   }
 
   removePoints(count) {
@@ -351,32 +364,32 @@ class Constellation {
   updateCursorInfluence(p, pCursor) {
     const dist = p.getDistanceFromPoint(pCursor);
     const settings = this.settings;
-    const maxCursorPushLength = settings.maxCursorPushLength;
-    const maxCursorPushStrength = settings.maxCursorPushStrength;
-    const maxDx = settings.maxDx;
-    const maxDy = settings.maxDy;
+    const maxInteractForceDistance = settings.maxInteractForceDistance;
+    const maxInteractForceStrength = settings.maxInteractForceStrength;
+    const maxVelocityX = settings.maxVelocityX;
+    const maxVelocityY = settings.maxVelocityY;
 
-    if (dist < maxCursorPushLength) {
+    if (dist < maxInteractForceDistance) {
       const pushForce =
-        maxCursorPushStrength *
-        ((maxCursorPushLength - dist) / maxCursorPushLength);
+        maxInteractForceStrength *
+        ((maxInteractForceDistance - dist) / maxInteractForceDistance);
       const angle = p.getAngleFromPoint(pCursor);
 
       p.color = settings.pointInteractColor;
       p.dx += Math.cos(angle) * pushForce;
       p.dy += Math.sin(angle) * pushForce;
 
-      if (p.dx < -maxDx) {
-        p.dx = -maxDx;
+      if (p.dx < -maxVelocityX) {
+        p.dx = -maxVelocityX;
       }
-      if (p.dx > maxDx) {
-        p.dx = maxDx;
+      if (p.dx > maxVelocityX) {
+        p.dx = maxVelocityX;
       }
-      if (p.dy < -maxDy) {
-        p.dy = -maxDy;
+      if (p.dy < -maxVelocityY) {
+        p.dy = -maxVelocityY;
       }
-      if (p.dy > maxDy) {
-        p.dy = maxDy;
+      if (p.dy > maxVelocityY) {
+        p.dy = maxVelocityY;
       }
     }
   }
@@ -384,12 +397,12 @@ class Constellation {
   updatePullFromNeighbors(point) {
     const neighbors = point.neighbors;
     const settings = this.settings;
-    const repelRange = settings.repelRange;
-    const repelForce = settings.repelForce;
-    const attractRange = settings.attractRange;
-    const attractForce = settings.attractForce;
-    const maxDx = settings.maxDx;
-    const maxDy = settings.maxDy;
+    const repelDistanceRange = settings.repelDistanceRange;
+    const repelForceRange = settings.repelForceRange;
+    const attractDistanceRange = settings.attractDistanceRange;
+    const attractForceRange = settings.attractForceRange;
+    const maxVelocityX = settings.maxVelocityX;
+    const maxVelocityY = settings.maxVelocityY;
     let i = neighbors.length;
 
     while (i--) {
@@ -398,29 +411,37 @@ class Constellation {
       const dist = point.neighbors[i].distance;
       const angle = p.getAngleFromPoint(point);
 
-      if (dist >= repelRange[0] && dist <= repelRange[1]) {
-        const rForce = this.linearMap(dist, repelForce, repelRange);
+      if (dist >= repelDistanceRange[0] && dist <= repelDistanceRange[1]) {
+        const rForce = this.linearMap(
+          dist,
+          repelForceRange,
+          repelDistanceRange
+        );
         p.dx += Math.cos(angle) * rForce;
         p.dy += Math.sin(angle) * rForce;
       }
 
-      if (dist >= attractRange[0] && dist <= attractRange[1]) {
-        const aForce = this.linearMap(dist, attractForce, attractRange);
+      if (dist >= attractDistanceRange[0] && dist <= attractDistanceRange[1]) {
+        const aForce = this.linearMap(
+          dist,
+          attractForceRange,
+          attractDistanceRange
+        );
         p.dx -= Math.cos(angle) * aForce;
         p.dy -= Math.sin(angle) * aForce;
       }
 
-      if (p.dx < -maxDx) {
-        p.dx = -maxDx;
+      if (p.dx < -maxVelocityX) {
+        p.dx = -maxVelocityX;
       }
-      if (p.dx > maxDx) {
-        p.dx = maxDx;
+      if (p.dx > maxVelocityX) {
+        p.dx = maxVelocityX;
       }
-      if (p.dy < -maxDy) {
-        p.dy = -maxDy;
+      if (p.dy < -maxVelocityY) {
+        p.dy = -maxVelocityY;
       }
-      if (p.dy > maxDy) {
-        p.dy = maxDy;
+      if (p.dy > maxVelocityY) {
+        p.dy = maxVelocityY;
       }
     }
   }
@@ -450,8 +471,8 @@ class Constellation {
 
     const maxDistance = Math.max(
       set.maxLineLength,
-      set.repelRange[1],
-      set.attractRange[1]
+      set.repelDistanceRange[1],
+      set.attractDistanceRange[1]
     );
 
     // scale dt for 60 fps
@@ -472,17 +493,26 @@ class Constellation {
     }
   }
 
-  init() {
-    this.context.fillStyle = this.settings.backgroundColor;
-    this.context.fillRect(0, 0, this.canvas.width, this.canvas.height);
+  setCanvasSize() {
+    const containerEl = document.getElementById(this.settings.canvasContainer);
     this.canvas.width =
       this.settings.canvasWidth === -1
-        ? window.innerWidth
+        ? containerEl
+          ? containerEl.clientWidth
+          : containerEl.innerWidth
         : this.settings.canvasWidth;
     this.canvas.height =
       this.settings.canvasHeight === -1
-        ? window.innerHeight
+        ? containerEl
+          ? containerEl.clientHeight
+          : containerEl.innerHeight
         : this.settings.canvasHeight;
+  }
+
+  init() {
+    this.context.fillStyle = this.settings.backgroundColor;
+    this.context.fillRect(0, 0, this.canvas.width, this.canvas.height);
+    this.setCanvasSize();
     this.initPoints(
       this.getPointCountForGivenDensity(this.settings.pointDensity)
     );
@@ -559,26 +589,8 @@ class Constellation {
     window.addEventListener(
       "resize",
       function (e) {
-        this.canvas.width =
-          this.settings.canvasWidth === -1
-            ? window.innerWidth
-            : this.settings.canvasWidth;
-        this.canvas.height =
-          this.settings.canvasHeight === -1
-            ? window.innerHeight
-            : this.settings.canvasHeight;
-        const pointCountDiff =
-          this.points.length -
-          this.getPointCountForGivenDensity(this.settings.pointDensity);
-        if (pointCountDiff > 0) {
-          this.removePoints(pointCountDiff);
-        } else {
-          this.addPoints(
-            -pointCountDiff,
-            this.settings.pointColor,
-            this.settings.pointSize
-          );
-        }
+        this.setCanvasSize();
+        this.updatePointCount();
       }.bind(this)
     );
   }
@@ -604,13 +616,20 @@ class Constellation {
 
     if (this.running) {
       requestAnimationFrame(this.run.bind(this));
+      FPS.incrementFrameCount();
     }
 
     this.update(dt);
     this.draw();
 
     if (this.settings.showFps) {
-      document.getElementById(this.settings.fpsDiv).innerHTML = FPS.getFPS();
+      const fpsEl = document.getElementById(this.settings.fpsElement);
+      if (fpsEl) {
+        fpsEl.innerText = FPS.getFPS();
+      } else {
+        console.error(`'fpsElement' is not configured properly.`);
+        this.this.settings.showFps = false;
+      }
     }
   }
 
