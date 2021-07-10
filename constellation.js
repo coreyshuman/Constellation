@@ -1,8 +1,9 @@
 /*
 	Constellation.js 
-	A physics-based constellation-like animation in JavaScript.
+	A physics-based animation in JavaScript which can produce many
+	designs and effects, including constellation-like star fields.
 	
-    Copyright (C) 2018 Corey Shuman <ctshumancode@gmail.com>
+    Copyright (C) 2015 - 2021 Corey Shuman <ctshumancode@gmail.com>
 	
     This program is free software: you can redistribute it and/or modify
     it under the terms of the GNU General Public License as published by
@@ -16,559 +17,643 @@
 
     You should have received a copy of the GNU General Public License
     along with this program.  If not, see <http://www.gnu.org/licenses/>.
-*/ 
+*/
 
-var fps = {
-	startTime : 0,
-	frameNumber : 0,
-	getFPS : function(){
-		this.frameNumber++;
-		const d = Date.now(),
-			currentTime = ( d - this.startTime ) / 1000,
-			result = Math.floor( ( this.frameNumber / currentTime ) );
+class FPS {
+  static startTime = 0;
+  static frameNumber = 0;
 
-		if( currentTime > 1 ){
-			this.startTime = Date.now();
-			this.frameNumber = 0;
-		}
-		return result;
+  static getFPS() {
+    this.frameNumber++;
+    const d = Date.now();
+    const currentTime = (d - this.startTime) / 1000;
+    const result = Math.floor(this.frameNumber / currentTime);
 
-	}	
-};
-
-class Point {
-	constructor(x, y) {
-		if(!isNaN(x)) this.x = x;
-		if(!isNaN(y)) this.y = y;
-	}
-
-	update(x, y) {
-		this.x = x;
-		this.y = y;
-	}
+    if (currentTime > 1) {
+      this.startTime = Date.now();
+      this.frameNumber = 0;
+    }
+    return result;
+  }
 }
 
+class Point {
+  constructor(x, y) {
+    this.x = isNaN(x) ? 0 : x;
+    this.y = isNaN(y) ? 0 : y;
+  }
 
-	/* Individual point entity, contains location, movement, and drawing functions */
-class ConstPoint {
-	constructor(x, y, dx, dy, color, pointSize) {
-		this.x = x;
-		this.y = y;
-		this.color = color;
-		this.pointSize = pointSize;
-		this.dx = dx; 
-		this.dy = dy; 
-		this.hasTarget = false;
-		this.target = new Point();
-		this.targetForce = 0;
-		this.neighbors = []; // array containing {point,distance} objects
-	}
-	
-	update(dt, allPoints, maxDistance, maxX, maxY) {
-		this.updateLocation(dt, maxX, maxY);
-		this.updateNeighborList(allPoints, maxDistance);
-	};
-	
-	draw (ctx, lineColor, lineWidth, maxLineLength) {
-		this.drawPoint(ctx);
-		this.drawLines(ctx, lineColor, lineWidth, maxLineLength);
-	};
-	
-	drawPoint(ctx) {
-		ctx.fillStyle = this.color;
-		ctx.globalAlpha = 0.9;
-		ctx.beginPath();
-		ctx.arc(this.x, this.y, this.pointSize, 0, 2*Math.PI);
-		ctx.fill();
-	};
-	
-	drawLines(ctx, lineColor, lineWidth, maxLineLength) {
-		var i = this.neighbors.length;
-		const neighbors = this.neighbors;
-		ctx.strokeStyle = lineColor;
-		ctx.lineWidth = lineWidth;
-		while(i--)
-		{
-			const pd = neighbors[i];
-			if(pd.distance > maxLineLength) {
-				continue;
-			}
-			ctx.globalAlpha = (maxLineLength - pd.distance) / maxLineLength;
-			ctx.beginPath();
-			ctx.moveTo(this.x, this.y);
-			ctx.lineTo(pd.p.x, pd.p.y);
-			ctx.stroke();
-		}
-	};
-	
-	updateLocation(dt, maxX, maxY) {
-		if(this.hasTarget) {
-			const distance = this.getDistanceFromPoint(this.target);
-			if(distance > 5) {
-				const angle = this.getAngleFromPoint(this.target);
-				this.dx -= Math.cos(angle) * this.targetForce;
-				this.dy -= Math.sin(angle) * this.targetForce;
-			}
-		}
+  update(x, y) {
+    this.x = x;
+    this.y = y;
+  }
+}
 
-		this.x += this.dx * dt;
-		this.y += this.dy * dt;
-		
-		if(this.y < 0) {
-			this.y = 0;
-			this.dy = -this.dy;
-		}
-		if(this.x < 0) {
-			this.x = 0;
-			this.dx = -this.dx;
-		}
-		if(this.y > maxY) {
-			this.y = maxY;
-			this.dy = -this.dy;
-		}
-		if(this.x > maxX) {
-			this.x = maxX;
-			this.dx = -this.dx;
-		}
-		
-		if(this.dx > 0.5) this.dx -= (0.03 * dt);
-		if(this.dy > 0.5) this.dy -= (0.03 * dt);
-		if(this.dx < -0.5) this.dx += (0.03 * dt);
-		if(this.dy < -0.5) this.dy += (0.03 * dt);
-	};
-	
-	updateNeighborList(allPoints, maxDistance) {
-		var i;
-		this.neighbors = [];
-		for(i=0; i<allPoints.length; i++)
-		{
-			var p = allPoints[i];
-			
-			if(this === p) {
-				continue;
-			}
-			
-			const dist = this.getDistanceFromPoint(p);
-			
-			if(dist < maxDistance)
-			{
-				this.neighbors.push({p, distance: dist});
-			}
-		}
-	};
-	
-	getDistanceFromPoint(p) {
-		const x = p.x - this.x;
-		const y = p.y - this.y;
-		return Math.sqrt( x*x + y*y );
-	};
+/* Individual point entity, contains location, movement, and drawing functions */
+class DrawnPoint {
+  constructor(x, y, dx, dy, color, pointSize) {
+    this.x = x;
+    this.y = y;
+    this.color = color;
+    this.pointSize = pointSize;
+    this.dx = dx;
+    this.dy = dy;
+    this.neighbors = []; // array containing {point,distance} objects
+  }
 
-	getAngleFromPoint(p) {
-		return Math.atan2(this.y - p.y, this.x - p.x);
-	}
-};
+  update(dt, allPoints, maxDistance, maxX, maxY) {
+    this.updateLocation(dt, maxX, maxY);
+    this.updateNeighborList(allPoints, maxDistance);
+  }
+
+  draw(ctx, lineColor, lineWidth, maxLineLength) {
+    this.drawPoint(ctx);
+    this.drawLines(ctx, lineColor, lineWidth, maxLineLength);
+  }
+
+  drawPoint(ctx) {
+    ctx.fillStyle = this.color;
+    ctx.globalAlpha = 0.9;
+    ctx.beginPath();
+    ctx.arc(this.x, this.y, this.pointSize, 0, 2 * Math.PI);
+    ctx.fill();
+  }
+
+  drawLines(ctx, lineColor, lineWidth, maxLineLength) {
+    let i = this.neighbors.length;
+    const neighbors = this.neighbors;
+    ctx.strokeStyle = lineColor;
+    ctx.lineWidth = lineWidth;
+
+    // limit line draws for performance
+    if (i > 5) {
+      i = 5;
+    }
+
+    while (i--) {
+      const pd = neighbors[i];
+      if (pd.distance > maxLineLength) {
+        continue;
+      }
+      ctx.globalAlpha = (maxLineLength - pd.distance) / maxLineLength;
+      ctx.beginPath();
+      ctx.moveTo(this.x, this.y);
+      ctx.lineTo(pd.p.x, pd.p.y);
+      ctx.stroke();
+    }
+  }
+
+  updateLocation(dt, maxX, maxY) {
+    this.x += this.dx * dt;
+    this.y += this.dy * dt;
+
+    if (this.y < 0) {
+      this.y = 0;
+      this.dy = -this.dy;
+    }
+    if (this.x < 0) {
+      this.x = 0;
+      this.dx = -this.dx;
+    }
+    if (this.y > maxY) {
+      this.y = maxY;
+      this.dy = -this.dy;
+    }
+    if (this.x > maxX) {
+      this.x = maxX;
+      this.dx = -this.dx;
+    }
+
+    if (this.dx > 0.5) {
+      this.dx -= 0.03 * dt;
+    }
+    if (this.dy > 0.5) {
+      this.dy -= 0.03 * dt;
+    }
+    if (this.dx < -0.5) {
+      this.dx += 0.03 * dt;
+    }
+    if (this.dy < -0.5) {
+      this.dy += 0.03 * dt;
+    }
+  }
+
+  updateNeighborList(allPoints, maxDistance) {
+    this.neighbors = [];
+    for (let i = 0; i < allPoints.length; i++) {
+      const p = allPoints[i];
+
+      if (this === p) {
+        continue;
+      }
+
+      const dist = this.getDistanceFromPoint(p);
+
+      if (dist < maxDistance) {
+        this.neighbors.push({ p, distance: dist });
+      }
+    }
+  }
+
+  getDistanceFromPoint(p) {
+    const x = p.x - this.x;
+    const y = p.y - this.y;
+    return Math.sqrt(x * x + y * y);
+  }
+
+  getAngleFromPoint(p) {
+    return Math.atan2(this.y - p.y, this.x - p.x);
+  }
+}
 
 class Constellation {
-	constructor(userSettings) {
-		this.this = this;
-		this.lastFrameTime = Date.now();
-		this.running = false;
-		this.pointCount = 0;
-		
-		this.settings = {
-			canvasDiv: 'canvas',
-			canvasId: 'canvas',
-			canvasWidth: -1,
-			canvasHeight: -1,
-			fpsDiv: '',
-			showFps: false,
-			pointDensity: 30,
-			maxDx: 5,
-			maxDy: 5,
-			maxLineLength: 60,
-			repelRange: [0, 20],
-			repelForce: [.1, 0],
-			attractRange: [15, 30],
-			attractForce: [0, .001],
-			maxCursorPushLength: 60,
-			maxCursorPushStrength: .3,
-			lineColor: 'lightblue',
-			pointColor: 'teal',
-			pointInteractColor: 'red',
-			pointSize: 3,
-			lineSize: 2,
-			screenBlur: 0.6,
-			backgroundColor: 'black'
-		};
-		
-		if (userSettings) {
-			for(var prop in userSettings) {
-				if(this.settings.hasOwnProperty(prop)) {
-					this.settings[prop] = userSettings[prop];
-				}
-			}
-		}
-		
-		this.canvas = document.createElement('canvas');
-		document.getElementById(this.settings.canvasDiv).appendChild(this.canvas);
-		//this.canvas = document.getElementById(this.settings.canvasId);
-		this.context = this.canvas.getContext('2d');
-		this.points = [];
-		this.canvasOffset = this.getOffset(this.canvas);
-		// stores cursor position 
-		this.cursor = new Point();
-		// store touch positions on mobile
-		this.touches = [];
-	}
+  constructor(userSettings) {
+    this.this = this;
+    this.lastFrameTime = Date.now();
+    this.running = false;
+    this.pointCount = 0;
 
-	updateSetting(settingName, value) {
-		if(value === undefined || value === null) throw "Value cannot be null or undefined.";
-		switch(settingName) {
-			case "canvasWidth":
-			case "canvasHeight":
-				if(value < 1) value = -1;
-				break;
-			case "showFps":
-				value = !!value;
-				if(value && !fpsDiv) throw "fpsDiv must be configured before enabling 'showFps'";
-				break;
-			case "pointDensity":
-				if(value < 0) value = 0;
-				break;
-			case "maxLineLength":
-				if(value < 0) value = 0;
-				break;
-			case "repelRange":
-			case "attractRange":
-				if(value.length !== 2) throw `Value for ${settingName} must be an array with two integers.`;
-				if(value[1] < value[0]) throw `Second value for ${settingName} must be large or equal to the first value.`;
-				break;
-			case "repelForce":
-			case "attractForce":
-				if(value.length !== 2) throw `Value for ${settingName} must be an array with two integers.`;
-				break;
-			case "lineColor":
-			case "backgroundColor":
-			case "pointColor":
-				break;
-			default: throw "Invalid setting name: " + settingName;
-		}
-		this.settings[settingName] = value;
+    this.settings = {
+      canvasDiv: "canvas",
+      canvasId: "canvas",
+      canvasWidth: -1,
+      canvasHeight: -1,
+      fpsDiv: null,
+      showFps: false,
+      pointDensity: 30,
+      maxDx: 5,
+      maxDy: 5,
+      maxLineLength: 60,
+      repelRange: [0, 20],
+      repelForce: [0.1, 0],
+      attractRange: [15, 30],
+      attractForce: [0, 0.001],
+      maxCursorPushLength: 60,
+      maxCursorPushStrength: 0.3,
+      lineColor: "lightblue",
+      pointColor: "teal",
+      pointInteractColor: "red",
+      pointSize: 3,
+      lineSize: 2,
+      screenBlur: 0.6,
+      backgroundColor: "black",
+    };
 
-		if(["pointDensity"].includes(settingName)) {
-			this.initPoints(this.getPointCount());
-		}
-	}
-	
-	initPoints(cnt) {
-		this.points = [];
-		const pointColor = this.settings.pointColor;
-		const pointSize = this.settings.pointSize;
-		do {
-			this.points.push(new ConstPoint(
-				this.getRandomInt(1,this.canvas.width-1), 
-				this.getRandomInt(1,this.canvas.height-1), 
-				Math.random() * this.getRandomInt(-1,1), 
-				Math.random() * this.getRandomInt(-1,1), 
-				pointColor, pointSize));
-		} while (cnt--);
+    if (userSettings) {
+      for (const prop in userSettings) {
+        if (Object.prototype.hasOwnProperty.call(this.settings, prop)) {
+          this.settings[prop] = userSettings[prop];
+        }
+      }
+    }
 
-		this.letter(this.points);
-	}
+    this.canvas = document.createElement("canvas");
+    document.getElementById(this.settings.canvasDiv).appendChild(this.canvas);
+    this.context = this.canvas.getContext("2d");
+    this.points = [];
+    this.canvasOffset = this.getOffset(this.canvas);
+    // stores cursor position
+    this.cursor = new Point();
+    // store touch positions on mobile
+    this.touches = [];
+  }
 
-	clearPointColor(p) {
-		p.color = this.settings.pointColor;
-	}
-	
-	updateCursorInfluence(p, pCursor) {
-		const dist = p.getDistanceFromPoint(pCursor);
-		const settings = this.settings;
-		const maxCursorPushLength = settings.maxCursorPushLength;
-		const maxCursorPushStrength = settings.maxCursorPushStrength;
-		const maxDx = settings.maxDx;
-		const maxDy = settings.maxDy;
+  defaultSettings() {
+    const defaultSettings = {
+      pointDensity: 30,
+      maxDx: 5,
+      maxDy: 5,
+      maxLineLength: 60,
+      repelRange: [0, 20],
+      repelForce: [0.1, 0],
+      attractRange: [15, 30],
+      attractForce: [0, 0.001],
+      maxCursorPushLength: 60,
+      maxCursorPushStrength: 0.3,
+      lineColor: "lightblue",
+      pointColor: "teal",
+      pointInteractColor: "red",
+      pointSize: 3,
+      lineSize: 2,
+      screenBlur: 0.6,
+      backgroundColor: "black",
+    };
 
-		if(dist < maxCursorPushLength)
-		{
-			const pushForce = maxCursorPushStrength * ((maxCursorPushLength - dist) / maxCursorPushLength);
-			const angle = p.getAngleFromPoint(pCursor);
-			
-			p.color = settings.pointInteractColor;
-			p.dx += Math.cos(angle) * pushForce;
-			p.dy += Math.sin(angle) * pushForce;
+    this.settings = { ...this.settings, ...defaultSettings };
+  }
 
-			if(p.dx < -maxDx) p.dx = - maxDx;
-			if(p.dx > maxDx) p.dx = maxDx;
-			if(p.dy < -maxDy) p.dy = - maxDy;
-			if(p.dy > maxDy) p.dy = maxDy;
-		}
-	}
-		
-	updatePullFromNeighbors(point) {
-		const neighbors = point.neighbors;
-		const settings = this.settings;
-		const repelRange = settings.repelRange;
-		const repelForce = settings.repelForce;
-		const attractRange = settings.attractRange;
-		const attractForce = settings.attractForce;
-		const maxDx = settings.maxDx;
-		const maxDy = settings.maxDy;
-		var i = neighbors.length;
+  updateSetting(settingName, value) {
+    if (value === undefined || value === null) {
+      throw new Error("Value cannot be null or undefined.");
+    }
+    switch (settingName) {
+      case "canvasWidth":
+      case "canvasHeight":
+        if (value < 1) {
+          value = -1;
+        }
+        break;
+      case "showFps":
+        value = !!value;
+        if (value && !this.this.settings.fpsDiv) {
+          throw new Error(
+            `fpsDiv must be configured before enabling 'showFps'`
+          );
+        }
+        break;
+      case "pointDensity":
+        if (value < 0) {
+          value = 0;
+        }
+        break;
+      case "maxLineLength":
+        if (value < 0) {
+          value = 0;
+        }
+        break;
+      case "repelRange":
+      case "attractRange":
+        if (value.length !== 2) {
+          throw new Error(
+            `Value for ${settingName} must be an array with two integers.`
+          );
+        }
+        if (value[1] < value[0]) {
+          throw new Error(
+            `Second value for ${settingName} must be large or equal to the first value.`
+          );
+        }
+        break;
+      case "repelForce":
+      case "attractForce":
+        if (value.length !== 2) {
+          throw new Error(
+            `Value for ${settingName} must be an array with two integers.`
+          );
+        }
+        break;
+      case "lineColor":
+      case "backgroundColor":
+      case "pointColor":
+      case "pointInteractColor":
+        break;
+      default:
+        throw new Error(`Invalid setting name: ${settingName}`);
+    }
+    this.settings[settingName] = value;
 
+    if (["pointDensity"].includes(settingName)) {
+      this.initPoints(
+        this.getPointCountForGivenDensity(this.settings.pointDensity)
+      );
+    }
+  }
 
-		while(i--) {
-			const p = point.neighbors[i].p;
+  initPoints(count) {
+    this.points = [];
+    const pointColor = this.settings.pointColor;
+    const pointSize = this.settings.pointSize;
+    this.this.addPoints(count, pointColor, pointSize);
+  }
 
-			const dist = point.neighbors[i].distance;
-			const angle = p.getAngleFromPoint(point);
+  removePoints(count) {
+    if (count > this.points.length) {
+      this.points = [];
+      return;
+    }
 
-			if(dist >= repelRange[0] && dist <= repelRange[1]) {
-				const rForce = this.linearMap(dist, repelForce, repelRange);
-				p.dx += Math.cos(angle) * rForce;
-				p.dy += Math.sin(angle) * rForce;
-			}
+    this.points = this.points.slice(count);
+  }
 
-			if(dist >= attractRange[0] && dist <= attractRange[1]) {
-				const aForce = this.linearMap(dist, attractForce, attractRange);
-				p.dx -= Math.cos(angle) * aForce;
-				p.dy -= Math.sin(angle) * aForce;
-			}
+  addPoints(count, pointColor, pointSize) {
+    do {
+      this.addPoint(pointColor, pointSize);
+    } while (count--);
+  }
 
-			if(p.dx < -maxDx) p.dx = - maxDx;
-			if(p.dx > maxDx) p.dx = maxDx;
-			if(p.dy < -maxDy) p.dy = - maxDy;
-			if(p.dy > maxDy) p.dy = maxDy;
-		}
-	}
-	
-	draw() {
-		const ctx = this.context;
-		const points = this.points;
-		const lineColor = this.settings.lineColor;
-		const lineWidth = this.settings.lineWidth;
-		const maxLineLength = this.settings.maxLineLength;
-		ctx.globalAlpha = 1 - this.settings.screenBlur;
-		ctx.fillStyle = this.settings.backgroundColor;
-		ctx.fillRect(0,0,this.canvas.width, this.canvas.height);
-		var i = this.points.length;
-		
-		while(i--) {
-			var p = points[i];
-			p.draw(ctx, lineColor, lineWidth, maxLineLength);
-		} 
-	}
+  addPoint(pointColor, pointSize) {
+    this.points.push(
+      new DrawnPoint(
+        this.getRandomInt(1, this.canvas.width - 1),
+        this.getRandomInt(1, this.canvas.height - 1),
+        Math.random() * this.getRandomInt(-1, 1),
+        Math.random() * this.getRandomInt(-1, 1),
+        pointColor,
+        pointSize
+      )
+    );
+  }
 
-	update(dt){
-		const points = this.points;
-		const maxX = this.canvas.width;
-		const maxY = this.canvas.height;
-		const set = this.settings;
-		var i = points.length;
+  clearPointColor(p) {
+    p.color = this.settings.pointColor;
+  }
 
-		const maxDistance = Math.max(set.maxLineLength, set.repelRange[1], set.attractRange[1]);
+  updateCursorInfluence(p, pCursor) {
+    const dist = p.getDistanceFromPoint(pCursor);
+    const settings = this.settings;
+    const maxCursorPushLength = settings.maxCursorPushLength;
+    const maxCursorPushStrength = settings.maxCursorPushStrength;
+    const maxDx = settings.maxDx;
+    const maxDy = settings.maxDy;
 
-		// scale dt for 60 fps
-		dt /= 16.667;
+    if (dist < maxCursorPushLength) {
+      const pushForce =
+        maxCursorPushStrength *
+        ((maxCursorPushLength - dist) / maxCursorPushLength);
+      const angle = p.getAngleFromPoint(pCursor);
 
-		while(i--) {
-			var p = points[i];
-			p.update(dt, points, maxDistance, maxX, maxY);
-			this.updatePullFromNeighbors(p);
-			this.clearPointColor(p);
-			if(this.touches.length === 0) {
-				this.updateCursorInfluence(p, this.cursor);
-			} else {
-				for(var j = 0; j < this.touches.length; j++) {
-					this.updateCursorInfluence(p, this.touches[j]);
-				}
-			}
-		}
-	}
+      p.color = settings.pointInteractColor;
+      p.dx += Math.cos(angle) * pushForce;
+      p.dy += Math.sin(angle) * pushForce;
 
-	letter(points) {
-		var count = 0;
-		const xStart = 100;
-		const yStart = 100;
-		const scale = 20;
-		const c = [ 0, 1, 1, 1, 1, 0,
-					1, 0, 0, 0, 0, 0,
-					1, 0, 0, 0, 0, 0,
-					1, 0, 0, 0, 0, 0,
-					1, 0, 0, 0, 0, 0,
-					1, 0, 0, 0, 0, 0,
-					0, 1, 1, 1, 1, 0,
-					0, 0, 0, 0, 0, 0
-					];
-		const o = [ 0, 1, 1, 1, 1, 0,
-					1, 0, 0, 0, 0, 1,
-					1, 0, 0, 0, 0, 1,
-					1, 0, 0, 0, 0, 1,
-					1, 0, 0, 0, 0, 1,
-					1, 0, 0, 0, 0, 1,
-					0, 1, 1, 1, 1, 0,
-					0, 0, 0, 0, 0, 0
-			];
-		const r = [ 0, 1, 1, 1, 0, 0,
-					1, 0, 0, 0, 1, 0,
-					1, 0, 0, 0, 1, 0,
-					1, 0, 1, 1, 0, 0,
-					1, 1, 1, 0, 0, 0,
-					1, 0, 0, 1, 0, 0,
-					1, 0, 0, 0, 1, 0,
-					0, 0, 0, 0, 0, 0
-			];
-		const e = [ 1, 1, 1, 1, 1, 0,
-					1, 0, 0, 0, 0, 0,
-					1, 0, 0, 0, 0, 0,
-					1, 1, 1, 1, 1, 0,
-					1, 0, 0, 0, 0, 0,
-					1, 0, 0, 0, 0, 0,
-					1, 1, 1, 1, 1, 0,
-					0, 0, 0, 0, 0, 0
-			];
-		const y = [ 0, 0, 0, 0, 0, 0,
-					1, 0, 0, 0, 0, 1,
-					0, 1, 0, 0, 1, 0,
-					0, 0, 1, 1, 0, 0,
-					0, 0, 1, 0, 0, 0,
-					0, 1, 0, 0, 0, 0,
-					1, 0, 0, 0, 0, 0,
-					0, 0, 0, 0, 0, 0
-			];
+      if (p.dx < -maxDx) {
+        p.dx = -maxDx;
+      }
+      if (p.dx > maxDx) {
+        p.dx = maxDx;
+      }
+      if (p.dy < -maxDy) {
+        p.dy = -maxDy;
+      }
+      if (p.dy > maxDy) {
+        p.dy = maxDy;
+      }
+    }
+  }
 
-		const letters = [c, o, r, e, y];
+  updatePullFromNeighbors(point) {
+    const neighbors = point.neighbors;
+    const settings = this.settings;
+    const repelRange = settings.repelRange;
+    const repelForce = settings.repelForce;
+    const attractRange = settings.attractRange;
+    const attractForce = settings.attractForce;
+    const maxDx = settings.maxDx;
+    const maxDy = settings.maxDy;
+    let i = neighbors.length;
 
-		// get dots for letter
-		for(const ydx in letters) {
-			for(const idx in letters[ydx]) {
-				if(letters[ydx][idx]) {
-					const p = points[count++];
-					p.target.x = (idx%6) * scale + xStart + ydx*7*scale;
-					p.target.y = Math.floor(idx/6) * scale + yStart;
-					p.targetForce = 5;
-					p.hasTarget = true;
-				}
-			}
-		}
-	}
-	
-	
-	init() {
-		this.context.fillStyle = this.settings.backgroundColor;
-		this.context.fillRect(0,0,this.canvas.width, this.canvas.height);
-		this.canvas.width = (this.settings.canvasWidth === -1) ? window.innerWidth : this.settings.canvasWidth;
-		this.canvas.height = (this.settings.canvasHeight === -1) ? window.innerHeight : this.settings.canvasHeight;
-		this.initPoints(this.getPointCount());
-		
-		document.body.addEventListener("mousemove", function( evt ) {
-			this.cursor.update(evt.pageX-this.canvasOffset.left, evt.pageY-this.canvasOffset.top);
-		}.bind(this));
-		
-		// add support for touch events
-		document.body.addEventListener("touchstart", function( evt ) {
-			//evt.preventDefault();
-			var ct = evt.changedTouches;
-			for(var i = 0; i < ct.length; i++) {
-				var touch = ct[i];
-				this.touches.push({ identifier: touch.identifier, x: touch.pageX-this.canvasOffset.left, y: touch.pageY-this.canvasOffset.top });
-			}
-		}.bind(this));
-		
-		document.body.addEventListener("touchmove", function( evt ) {
-			evt.preventDefault();
-			var ct = evt.changedTouches;
-			for(var i = 0; i < ct.length; i++) {
-				var idx = this.findTouchById(ct[i].identifier);
-				var touch = ct[i];
-				if(idx >= 0) {
-					this.touches.splice(idx, 1, { identifier: touch.identifier, x: touch.pageX-this.canvasOffset.left, y: touch.pageY-this.canvasOffset.top });
-				}
-			}
-		}.bind(this));
-		
-		document.body.addEventListener("touchend", function( evt ) {
-			evt.preventDefault();
-			var ct = evt.changedTouches;
-			for(var i = 0; i < ct.length; i++) {
-				var idx = this.findTouchById(ct[i].identifier);
-				if(idx >= 0) {
-					this.touches.splice(idx, 1);
-				}
-			}
-		}.bind(this));
-		
-		document.body.addEventListener("touchcancel", function( evt ) {
-			for(var i = 0; i < this.touches.length; i++) {
-				this.touches.pop();
-			}
-		}.bind(this));
+    while (i--) {
+      const p = point.neighbors[i].p;
 
-		// redraw screen and points on a screen resize
-		window.addEventListener("resize", function(e) {
-			this.canvas.width = (this.settings.canvasWidth === -1) ? window.innerWidth : this.settings.canvasWidth;
-			this.canvas.height = (this.settings.canvasHeight === -1) ? window.innerHeight : this.settings.canvasHeight;
-			this.initPoints(this.getPointCount());
-		}.bind(this));
-	};
-	
-	start() {
-		this.running = true;
-		this.lastFrameTime = Date.now();
-		this.run();
-	}
+      const dist = point.neighbors[i].distance;
+      const angle = p.getAngleFromPoint(point);
 
-	stop() {
-		this.running = false;
-	}
-	
-	run() {
-		const dt = Date.now() - this.lastFrameTime;
-		this.lastFrameTime = Date.now();
-		if(this.running) {
-			requestAnimationFrame(this.run.bind(this));
-		}
-		
-		this.update(dt);
-		this.draw();
-		
-		if(this.settings.showFps) {
-			document.getElementById(this.settings.fpsDiv).innerHTML = fps.getFPS();
-		}
-	}
+      if (dist >= repelRange[0] && dist <= repelRange[1]) {
+        const rForce = this.linearMap(dist, repelForce, repelRange);
+        p.dx += Math.cos(angle) * rForce;
+        p.dy += Math.sin(angle) * rForce;
+      }
 
-	// calculate point count based on density and screen size
-	getPointCount() {
-		return Math.max(Math.floor((this.canvas.width * this.canvas.height) / 100000 * this.settings.pointDensity), 10);
-	}
-	
-	// function to match touch event with stored touch position
-	findTouchById(idToFind) {
-		for (var i = 0; i < this.touches.length; i++) {
-			var id = this.touches[i].identifier;
+      if (dist >= attractRange[0] && dist <= attractRange[1]) {
+        const aForce = this.linearMap(dist, attractForce, attractRange);
+        p.dx -= Math.cos(angle) * aForce;
+        p.dy -= Math.sin(angle) * aForce;
+      }
 
-			if (id == idToFind) {
-			  return i;
-			}
-		}
-		return -1;    // not found
-	}
+      if (p.dx < -maxDx) {
+        p.dx = -maxDx;
+      }
+      if (p.dx > maxDx) {
+        p.dx = maxDx;
+      }
+      if (p.dy < -maxDy) {
+        p.dy = -maxDy;
+      }
+      if (p.dy > maxDy) {
+        p.dy = maxDy;
+      }
+    }
+  }
 
-	// helper function to get element offset
-	getOffset(el) {
-		const rect = el.getBoundingClientRect();
-		return {
-			left: rect.left + window.scrollX,
-			top: rect.top + window.scrollY
-		};
-	}
+  draw() {
+    const ctx = this.context;
+    const points = this.points;
+    const lineColor = this.settings.lineColor;
+    const lineWidth = this.settings.lineWidth;
+    const maxLineLength = this.settings.maxLineLength;
+    ctx.globalAlpha = 1 - this.settings.screenBlur;
+    ctx.fillStyle = this.settings.backgroundColor;
+    ctx.fillRect(0, 0, this.canvas.width, this.canvas.height);
+    let i = this.points.length;
 
-	// helper function to get a random integer between two values
-	getRandomInt(min, max) {
-		return Math.floor(Math.random() * (max - min + 1)) + min;
-	}
+    while (i--) {
+      points[i].draw(ctx, lineColor, lineWidth, maxLineLength);
+    }
+  }
 
-	// function to find the point on a line (y=mx+b)
-	linearMap(value, yRange, xRange) {
-		return (value - xRange[0]) * (yRange[1] - yRange[0]) / (xRange[1] - xRange[0]) + yRange[0];
-	}
-};
+  update(dt) {
+    const points = this.points;
+    const maxX = this.canvas.width;
+    const maxY = this.canvas.height;
+    const set = this.settings;
+    let i = points.length;
+
+    const maxDistance = Math.max(
+      set.maxLineLength,
+      set.repelRange[1],
+      set.attractRange[1]
+    );
+
+    // scale dt for 60 fps
+    dt /= 16.667;
+
+    while (i--) {
+      const p = points[i];
+      p.update(dt, points, maxDistance, maxX, maxY);
+      this.updatePullFromNeighbors(p);
+      this.clearPointColor(p);
+      if (this.touches.length === 0) {
+        this.updateCursorInfluence(p, this.cursor);
+      } else {
+        for (let j = 0; j < this.touches.length; j++) {
+          this.updateCursorInfluence(p, this.touches[j]);
+        }
+      }
+    }
+  }
+
+  init() {
+    this.context.fillStyle = this.settings.backgroundColor;
+    this.context.fillRect(0, 0, this.canvas.width, this.canvas.height);
+    this.canvas.width =
+      this.settings.canvasWidth === -1
+        ? window.innerWidth
+        : this.settings.canvasWidth;
+    this.canvas.height =
+      this.settings.canvasHeight === -1
+        ? window.innerHeight
+        : this.settings.canvasHeight;
+    this.initPoints(
+      this.getPointCountForGivenDensity(this.settings.pointDensity)
+    );
+
+    document.body.addEventListener(
+      "mousemove",
+      function (evt) {
+        this.cursor.update(
+          evt.pageX - this.canvasOffset.left,
+          evt.pageY - this.canvasOffset.top
+        );
+      }.bind(this)
+    );
+
+    // add support for touch events
+    document.body.addEventListener(
+      "touchstart",
+      function (evt) {
+        const ct = evt.changedTouches;
+        for (let i = 0; i < ct.length; i++) {
+          const touch = ct[i];
+          this.touches.push({
+            identifier: touch.identifier,
+            x: touch.pageX - this.canvasOffset.left,
+            y: touch.pageY - this.canvasOffset.top,
+          });
+        }
+      }.bind(this)
+    );
+
+    document.body.addEventListener(
+      "touchmove",
+      function (evt) {
+        evt.preventDefault();
+        const ct = evt.changedTouches;
+        for (let i = 0; i < ct.length; i++) {
+          const idx = this.findTouchById(ct[i].identifier);
+          const touch = ct[i];
+          if (idx >= 0) {
+            this.touches.splice(idx, 1, {
+              identifier: touch.identifier,
+              x: touch.pageX - this.canvasOffset.left,
+              y: touch.pageY - this.canvasOffset.top,
+            });
+          }
+        }
+      }.bind(this)
+    );
+
+    document.body.addEventListener(
+      "touchend",
+      function (evt) {
+        evt.preventDefault();
+        const ct = evt.changedTouches;
+        for (let i = 0; i < ct.length; i++) {
+          const idx = this.findTouchById(ct[i].identifier);
+          if (idx >= 0) {
+            this.touches.splice(idx, 1);
+          }
+        }
+      }.bind(this)
+    );
+
+    document.body.addEventListener(
+      "touchcancel",
+      function (evt) {
+        for (let i = 0; i < this.touches.length; i++) {
+          this.touches.pop();
+        }
+      }.bind(this)
+    );
+
+    // redraw screen and points on a screen resize
+    window.addEventListener(
+      "resize",
+      function (e) {
+        this.canvas.width =
+          this.settings.canvasWidth === -1
+            ? window.innerWidth
+            : this.settings.canvasWidth;
+        this.canvas.height =
+          this.settings.canvasHeight === -1
+            ? window.innerHeight
+            : this.settings.canvasHeight;
+        const pointCountDiff =
+          this.points.length -
+          this.getPointCountForGivenDensity(this.settings.pointDensity);
+        if (pointCountDiff > 0) {
+          this.removePoints(pointCountDiff);
+        } else {
+          this.addPoints(
+            -pointCountDiff,
+            this.settings.pointColor,
+            this.settings.pointSize
+          );
+        }
+      }.bind(this)
+    );
+  }
+
+  start() {
+    this.running = true;
+    this.lastFrameTime = Date.now();
+    this.run();
+  }
+
+  stop() {
+    this.running = false;
+  }
+
+  run() {
+    let dt = Date.now() - this.lastFrameTime;
+    this.lastFrameTime = Date.now();
+
+    // if we were in the background, don't let dt run away
+    if (dt > 200) {
+      dt = 200;
+    }
+
+    if (this.running) {
+      requestAnimationFrame(this.run.bind(this));
+    }
+
+    this.update(dt);
+    this.draw();
+
+    if (this.settings.showFps) {
+      document.getElementById(this.settings.fpsDiv).innerHTML = FPS.getFPS();
+    }
+  }
+
+  // calculate point count based on density setting and screen size
+  getPointCountForGivenDensity(density) {
+    return Math.max(
+      Math.floor(((this.canvas.width * this.canvas.height) / 100000) * density),
+      10
+    );
+  }
+
+  // match touch event with stored touch position id
+  findTouchById(idToFind) {
+    for (let i = 0; i < this.touches.length; i++) {
+      const id = this.touches[i].identifier;
+
+      if (id === idToFind) {
+        return i;
+      }
+    }
+    return -1; // not found
+  }
+
+  // get the element offset from bounding client
+  getOffset(el) {
+    const rect = el.getBoundingClientRect();
+    return {
+      left: rect.left + window.scrollX,
+      top: rect.top + window.scrollY,
+    };
+  }
+
+  // get a random integer between two values
+  getRandomInt(min, max) {
+    return Math.floor(Math.random() * (max - min + 1)) + min;
+  }
+
+  // map a value linearly from the range x1,x2 to the range y1,y2
+  linearMap(value, yRange, xRange) {
+    return (
+      ((value - xRange[0]) * (yRange[1] - yRange[0])) /
+        (xRange[1] - xRange[0]) +
+      yRange[0]
+    );
+  }
+}
