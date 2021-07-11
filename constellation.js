@@ -186,9 +186,26 @@ class DrawnPoint {
     }
   }
 
+  // treat alpha values as keys in a hashmap
+  // alpha can be 0.00 to 1.00
+  getAlphaIndex(key) {
+    let index = 0;
+    if (key === "0") {
+      return 0;
+    }
+    index += key[0] * 100;
+    index += Number(key[2]) * 10;
+    if (key[3]) {
+      index += Number(key[3]);
+    }
+    return index;
+  }
+
   drawActionsQueued(queue, maxLineLength) {
     const count = this.neighbors.length;
     const neighbors = this.neighbors;
+    const alphas = queue.alphas;
+    const segments = queue.segments;
 
     for (let i = 0; i < count; i++) {
       const pd = neighbors[i];
@@ -202,15 +219,15 @@ class DrawnPoint {
         Math.round(((maxLineLength - pd.distance) / maxLineLength) * 100) / 100
       ).toString();
 
-      let alphaIdx = queue.alphas.indexOf(alpha);
+      let alphaIdx = this.getAlphaIndex(alpha);
 
-      if (alphaIdx === -1) {
-        alphaIdx = queue.alphas.push(alpha) - 1;
-        queue.segments[alphaIdx] = [];
+      if (!alphas[alphaIdx]) {
+        alphas[alphaIdx] = alpha;
+        segments[alphaIdx] = [];
       }
 
       // batch draws by alpha
-      queue.segments[alphaIdx].push({
+      segments[alphaIdx].push({
         x1: this.x,
         y1: this.y,
         x2: pd.p.x,
@@ -287,9 +304,10 @@ class Constellation {
   constructor(userSettings) {
     this.this = this;
     this.lastFrameTime = Date.now();
+    this.frameCount = 0;
     this.running = false;
     this.pointCount = 0;
-    this.drawActionsQueue; // {points: [], alphas: [], segments:[0:[], 1:[], ...]}
+    this.drawActionsQueue; // {points: [], alphas: [0...100], segments:[0:[], 1:[], ...]}
 
     this.settings = {
       canvasContainer: "",
@@ -313,6 +331,7 @@ class Constellation {
       screenBlur: 0.6,
       backgroundColor: "black",
       useQueuedDraws: true,
+      pingPongPhysicsUpdates: true,
     };
 
     if (userSettings) {
@@ -416,6 +435,7 @@ class Constellation {
       case "pointColor":
       case "pointInteractColor":
       case "useQueuedDraws":
+      case "pingPongPhysicsUpdates":
         break;
       default:
         throw new Error(`Invalid setting name: ${settingName}`);
@@ -577,7 +597,11 @@ class Constellation {
     ctx.fillRect(0, 0, this.canvas.width, this.canvas.height);
     let count = this.points.length;
 
-    this.drawActionsQueue = { points: [], alphas: [], segments: [] };
+    this.drawActionsQueue = {
+      points: [],
+      alphas: new Array(100),
+      segments: [],
+    };
     for (let i = 0; i < count; i++) {
       if (this.this.settings.useQueuedDraws) {
         points[i].drawQueued(this.drawActionsQueue, maxLineLength);
@@ -612,11 +636,16 @@ class Constellation {
 
       const drawGroups = this.drawActionsQueue.alphas;
       const drawGroupsCount = drawGroups.length;
+      const segmentsGroups = this.drawActionsQueue.segments;
 
       for (let i = 0; i < drawGroupsCount; i++) {
+        if (!drawGroups[i]) {
+          continue;
+        }
+
         ctx.globalAlpha = drawGroups[i];
         ctx.beginPath();
-        const segments = this.drawActionsQueue.segments[i];
+        const segments = segmentsGroups[i];
         const segmentsCount = segments.length;
         for (let k = 0; k < segmentsCount; k++) {
           const line = segments[k];
@@ -630,10 +659,11 @@ class Constellation {
 
   update(dt) {
     const points = this.points;
+    const pointCount = points.length;
     const maxX = this.canvas.width;
     const maxY = this.canvas.height;
     const set = this.settings;
-    let i = points.length;
+    const increment = this.settings.pingPongPhysicsUpdates ? 2 : 1;
 
     const maxDistance = Math.max(
       set.maxLineLength,
@@ -642,9 +672,11 @@ class Constellation {
     );
 
     // scale dt for 60 fps
-    dt /= 16.667;
+    dt /= this.settings.pingPongPhysicsUpdates ? 8.334 : 16.667;
 
-    while (i--) {
+    // alternate between even and odd points on each update for physics calculations
+    let i = this.settings.pingPongPhysicsUpdates ? this.frameCount % 2 : 0;
+    for (; i < pointCount; i += increment) {
       const p = points[i];
       p.update(dt, points, maxDistance, maxX, maxY);
       this.updatePullFromNeighbors(p);
@@ -657,6 +689,8 @@ class Constellation {
         }
       }
     }
+
+    this.frameCount++;
   }
 
   setCanvasSize() {

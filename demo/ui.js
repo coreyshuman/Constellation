@@ -195,6 +195,10 @@ $(function () {
     setSetting("useQueuedDraws", this.checked);
   });
 
+  $("#ping-pong").change(function (e) {
+    setSetting("pingPongPhysicsUpdates", this.checked);
+  });
+
   // in presets.js
   demoPresets.forEach((preset) => createDemoSetting(preset));
 
