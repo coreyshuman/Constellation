@@ -26,6 +26,7 @@ h1 {
   position: fixed;
   top: 10px;
   left: 10px;
+  z-index: 10;
 }
 
 #stats-div span {
@@ -43,8 +44,11 @@ h1 {
 }
 
 #control-container {
-  width: 320px;
-  background-color: black;
+  position: absolute;
+  width: 50px;
+  height: 100%;
+  background-color: transparent;
+  z-index: 9;
 }
 
 #color-container {
@@ -68,8 +72,9 @@ h1 {
 }
 
 #controls {
+  position: absolute;
   display: inline-block;
-  margin-top: 25%;
+  margin-top: 100px;
   margin-left: 4px;
   width: 300px;
   padding: 5px;
@@ -78,6 +83,7 @@ h1 {
   background-color: rgb(12, 38, 39);
   border-radius: 8px;
   border: solid 2px rgb(26, 80, 82);
+  z-index: 10;
 }
 
 .ui-slider {

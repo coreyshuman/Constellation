@@ -1,8 +1,12 @@
 # Constellation
 
-A physics-based animation in JavaScript which can produce many designs and effects, including constellation-like star fields. You can interact with the animation using the mouse or multiple touch points on touch devices.
+![Constellation Banner Image](/docs/images/banner.gif)
+
+A configurable physics-based animation in JavaScript which can produce many designs and effects, including constellation-like star fields. You can interact with the animation using the mouse or multiple touch points on touch devices.
 
 View a demo here: http://coreyshuman.github.io/Constellation/demo
+
+![Demo Collage](/docs/images/collage.png)
 
 # Example Usage:
 

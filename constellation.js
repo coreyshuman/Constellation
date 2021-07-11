@@ -787,7 +787,7 @@ class Constellation {
     document.body.addEventListener(
       "touchmove",
       function (evt) {
-        evt.preventDefault();
+        //evt.preventDefault();
         const ct = evt.changedTouches;
         for (let i = 0; i < ct.length; i++) {
           const idx = this.findTouchById(ct[i].identifier);
@@ -806,7 +806,7 @@ class Constellation {
     document.body.addEventListener(
       "touchend",
       function (evt) {
-        evt.preventDefault();
+        //evt.preventDefault();
         const ct = evt.changedTouches;
         for (let i = 0; i < ct.length; i++) {
           const idx = this.findTouchById(ct[i].identifier);

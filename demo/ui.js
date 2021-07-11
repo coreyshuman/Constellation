@@ -96,7 +96,6 @@ $(function () {
     }
 
     const updateValue = (value, inverted) => {
-      console.log("updateValue", setting.settingName, value);
       slider.slider(
         "option",
         typeof value === "object" ? "values" : "value",
@@ -363,7 +362,6 @@ $(function () {
           !Array.isArray(settings[slider.settingName]) &&
           isNaN(settings[slider.settingName])
         ) {
-          console.log("object", settings[slider.settingName]);
           slider.update(
             settings[slider.settingName].value,
             slider.invertible ? settings[slider.settingName].inverted : false
@@ -387,4 +385,55 @@ $(function () {
   }
 
   setPreset(demoPresets[0].settings);
+
+  $("#controls").on("swipeleft", (e) => {
+    $("#controls").hide({
+      effect: "slide",
+    });
+  });
+
+  $("#control-container").on("swiperight", (e) => {
+    $("#controls").show({
+      effect: "slide",
+    });
+  });
+
+  // drag event catcher
+  let trackingDrag = false;
+  let trackingTarget = null;
+  let dragStart = 0;
+
+  function startDrag(e) {
+    trackingDrag = true;
+    trackingTarget = e.target;
+    dragStart = e.x || e.changedTouches[0].pageX;
+  }
+
+  function doDrag(e) {
+    const dragX = e.x || e.changedTouches[0].pageX;
+    if (trackingDrag) {
+      if (Math.abs(dragX - dragStart) > 30) {
+        trackingDrag = false;
+        if (dragX > dragStart) {
+          if ($(trackingTarget).is($("#control-container")))
+            $("#control-container").trigger("swiperight");
+        } else {
+          if ($(trackingTarget).is($("#controls")))
+            $("#controls").trigger("swipeleft");
+        }
+      }
+    }
+  }
+
+  function stopDrag(e) {
+    trackingTarget = false;
+  }
+
+  document.body.addEventListener("mousedown", startDrag);
+  document.body.addEventListener("mousemove", doDrag);
+  document.body.addEventListener("mouseup", stopDrag);
+  document.body.addEventListener("touchstart", startDrag);
+  document.body.addEventListener("touchmove", doDrag);
+  document.body.addEventListener("touchend", stopDrag);
+  document.body.addEventListener("touchcancel", stopDrag);
 });
