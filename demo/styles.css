@@ -19,10 +19,14 @@ h1 {
   margin-bottom: 10px;
 }
 
-#fps-div {
+#stats-div {
   position: fixed;
   top: 10px;
   left: 10px;
+}
+
+#stats-div span {
+  display: block;
 }
 
 #flex-container {

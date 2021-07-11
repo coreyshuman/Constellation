@@ -19,24 +19,97 @@
     along with this program.  If not, see <http://www.gnu.org/licenses/>.
 */
 
-class FPS {
+class Statistics {
   static startTime = 0;
   static frameNumber = 0;
+  static updateTimes = [];
+  static updateTemp;
+  static drawTimes = [];
+  static drawTemp;
+  static printInterval = null;
+  static printElement = null;
 
-  static getFPS() {
+  static initStats() {
+    Statistics.startTime = Date.now();
+    Statistics.frameNumber = 0;
+    Statistics.updateTimes = [];
+    Statistics.drawTimes = [];
+    if (Statistics.printInterval) {
+      clearInterval(Statistics.printInterval);
+    }
+  }
+
+  static showStats(statsElement) {
+    Statistics.printElement = statsElement;
+    if (Statistics.printInterval) {
+      clearInterval(Statistics.printInterval);
+    }
+    Statistics.printInterval = setInterval(Statistics.updateStats, 200);
+  }
+
+  static hideStats() {
+    if (Statistics.printInterval) {
+      clearInterval(Statistics.printInterval);
+    }
+  }
+
+  static updateStats() {
     const d = Date.now();
-    const currentTime = (d - this.startTime) / 1000;
-    const result = Math.floor(this.frameNumber / currentTime);
+    const currentTime = (d - Statistics.startTime) / 1000;
+    const fps = Math.floor(Statistics.frameNumber / currentTime);
+    let updateTime = 0;
+    let drawTime = 0;
 
-    if (currentTime > 1) {
-      this.startTime = Date.now();
-      this.frameNumber = 0;
+    if (Statistics.updateTimes.length) {
+      updateTime =
+        (Statistics.updateTimes.reduce((a, b) => a + b, 0) * 1000) /
+        Statistics.updateTimes.length;
+
+      updateTime = Math.round(updateTime);
+    }
+
+    if (Statistics.drawTimes.length) {
+      drawTime =
+        (Statistics.drawTimes.reduce((a, b) => a + b, 0) * 1000) /
+        Statistics.drawTimes.length;
+
+      drawTime = Math.round(drawTime);
+    }
+
+    const result = `<span>FPS: ${fps}</span><span>Physics: ${updateTime}us</span><span>Draw: ${drawTime}us</span>`;
+
+    Statistics.startTime = Date.now();
+    Statistics.frameNumber = 0;
+    Statistics.updateTimes = [];
+    Statistics.drawTimes = [];
+
+    if (Statistics.printElement) {
+      const el = document.getElementById(Statistics.printElement);
+      if (el) {
+        el.innerHTML = result;
+      }
     }
     return result;
   }
 
   static incrementFrameCount() {
-    this.frameNumber++;
+    Statistics.frameNumber++;
+  }
+
+  static startUpdate() {
+    Statistics.updateTemp = Date.now();
+  }
+
+  static endUpdate() {
+    Statistics.updateTimes.push(Date.now() - Statistics.updateTemp);
+  }
+
+  static startDraw() {
+    Statistics.drawTemp = Date.now();
+  }
+
+  static endDraw() {
+    Statistics.drawTimes.push(Date.now() - Statistics.drawTemp);
   }
 }
 
@@ -61,7 +134,7 @@ class DrawnPoint {
     this.pointSize = pointSize;
     this.dx = dx;
     this.dy = dy;
-    this.neighbors = []; // array containing {point,distance} objects
+    this.neighbors = []; // array containing {point,distance,drawQueued} objects
   }
 
   update(dt, allPoints, maxDistance, maxX, maxY) {
@@ -74,12 +147,24 @@ class DrawnPoint {
     this.drawLines(ctx, lineColor, lineWidth, maxLineLength);
   }
 
+  drawQueued(queue, maxLineLength) {
+    this.drawPointQueued(queue);
+    this.drawActionsQueued(queue, maxLineLength);
+  }
+
   drawPoint(ctx) {
     ctx.fillStyle = this.color;
     ctx.globalAlpha = 0.9;
     ctx.beginPath();
-    ctx.arc(this.x, this.y, this.pointSize, 0, 2 * Math.PI);
+    ctx.arc(this.x, this.y, this.pointSize, 0, Constellation.pi2);
     ctx.fill();
+  }
+
+  drawPointQueued(queue) {
+    queue.points.push({
+      x: this.x,
+      y: this.y,
+    });
   }
 
   drawLines(ctx, lineColor, lineWidth, maxLineLength) {
@@ -98,6 +183,39 @@ class DrawnPoint {
       ctx.moveTo(this.x, this.y);
       ctx.lineTo(pd.p.x, pd.p.y);
       ctx.stroke();
+    }
+  }
+
+  drawActionsQueued(queue, maxLineLength) {
+    const count = this.neighbors.length;
+    const neighbors = this.neighbors;
+
+    for (let i = 0; i < count; i++) {
+      const pd = neighbors[i];
+      if (pd.distance > maxLineLength) {
+        continue;
+      }
+
+      // todo, don't draw twice for neighbor
+
+      const alpha = (
+        Math.round(((maxLineLength - pd.distance) / maxLineLength) * 100) / 100
+      ).toString();
+
+      let alphaIdx = queue.alphas.indexOf(alpha);
+
+      if (alphaIdx === -1) {
+        alphaIdx = queue.alphas.push(alpha) - 1;
+        queue.segments[alphaIdx] = [];
+      }
+
+      // batch draws by alpha
+      queue.segments[alphaIdx].push({
+        x1: this.x,
+        y1: this.y,
+        x2: pd.p.x,
+        y2: pd.p.y,
+      });
     }
   }
 
@@ -165,18 +283,18 @@ class DrawnPoint {
 }
 
 class Constellation {
+  static pi2 = 2 * Math.PI;
   constructor(userSettings) {
     this.this = this;
     this.lastFrameTime = Date.now();
     this.running = false;
     this.pointCount = 0;
+    this.drawActionsQueue; // {points: [], alphas: [], segments:[0:[], 1:[], ...]}
 
     this.settings = {
       canvasContainer: "",
       canvasWidth: -1,
       canvasHeight: -1,
-      fpsElement: null,
-      showFps: false,
       pointDensity: 30,
       maxVelocityX: 5,
       maxVelocityY: 5,
@@ -194,6 +312,7 @@ class Constellation {
       lineSize: 2,
       screenBlur: 0.6,
       backgroundColor: "black",
+      useQueuedDraws: true,
     };
 
     if (userSettings) {
@@ -296,6 +415,7 @@ class Constellation {
       case "backgroundColor":
       case "pointColor":
       case "pointInteractColor":
+      case "useQueuedDraws":
         break;
       default:
         throw new Error(`Invalid setting name: ${settingName}`);
@@ -455,10 +575,56 @@ class Constellation {
     ctx.globalAlpha = 1 - this.settings.screenBlur;
     ctx.fillStyle = this.settings.backgroundColor;
     ctx.fillRect(0, 0, this.canvas.width, this.canvas.height);
-    let i = this.points.length;
+    let count = this.points.length;
 
-    while (i--) {
-      points[i].draw(ctx, lineColor, lineWidth, maxLineLength);
+    this.drawActionsQueue = { points: [], alphas: [], segments: [] };
+    for (let i = 0; i < count; i++) {
+      if (this.this.settings.useQueuedDraws) {
+        points[i].drawQueued(this.drawActionsQueue, maxLineLength);
+      } else {
+        points[i].draw(ctx, lineColor, lineWidth, maxLineLength);
+      }
+    }
+
+    if (this.settings.useQueuedDraws) {
+      // execute the queued draw actions
+      // draw points
+      ctx.strokeStyle = "rgb(0,0,0,0)";
+      ctx.fillStyle = this.settings.pointColor;
+      ctx.globalAlpha = 0.9;
+
+      const points = this.drawActionsQueue.points;
+      const pointsCount = points.length;
+      const pointSize = this.settings.pointSize;
+
+      // multiple arcs on a single path is actually slower,
+      // so we use multiple begin/fill calls here
+      for (let i = 0; i < pointsCount; i++) {
+        const point = points[i];
+        ctx.beginPath();
+        ctx.arc(point.x, point.y, pointSize, 0, Constellation.pi2);
+        ctx.fill();
+      }
+
+      // draw lines
+      ctx.strokeStyle = lineColor;
+      ctx.lineWidth = lineWidth;
+
+      const drawGroups = this.drawActionsQueue.alphas;
+      const drawGroupsCount = drawGroups.length;
+
+      for (let i = 0; i < drawGroupsCount; i++) {
+        ctx.globalAlpha = drawGroups[i];
+        ctx.beginPath();
+        const segments = this.drawActionsQueue.segments[i];
+        const segmentsCount = segments.length;
+        for (let k = 0; k < segmentsCount; k++) {
+          const line = segments[k];
+          ctx.moveTo(line.x1, line.y1);
+          ctx.lineTo(line.x2, line.y2);
+        }
+        ctx.stroke();
+      }
     }
   }
 
@@ -596,8 +762,10 @@ class Constellation {
   }
 
   start() {
+    if (this.running) return;
     this.running = true;
     this.lastFrameTime = Date.now();
+    Statistics.initStats();
     this.run();
   }
 
@@ -616,21 +784,15 @@ class Constellation {
 
     if (this.running) {
       requestAnimationFrame(this.run.bind(this));
-      FPS.incrementFrameCount();
+      Statistics.incrementFrameCount();
     }
 
+    Statistics.startUpdate();
     this.update(dt);
+    Statistics.endUpdate();
+    Statistics.startDraw();
     this.draw();
-
-    if (this.settings.showFps) {
-      const fpsEl = document.getElementById(this.settings.fpsElement);
-      if (fpsEl) {
-        fpsEl.innerText = FPS.getFPS();
-      } else {
-        console.error(`'fpsElement' is not configured properly.`);
-        this.this.settings.showFps = false;
-      }
-    }
+    Statistics.endDraw();
   }
 
   // calculate point count based on density setting and screen size

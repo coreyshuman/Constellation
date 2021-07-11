@@ -1,12 +1,4 @@
 $(function () {
-  window.constellation = new Constellation({
-    canvasContainer: "canvas-div",
-    fpsElement: "fps-text",
-    showFps: true,
-  });
-  window.constellation.init();
-  window.constellation.start();
-
   function addSettingsSlider(setting) {
     const settingUI = $("<div></div>")
       .append(
@@ -197,6 +189,10 @@ $(function () {
 
   $("#input-color-line").change(function (e) {
     setSetting("lineColor", this.value);
+  });
+
+  $("#queue-draws").change(function (e) {
+    setSetting("useQueuedDraws", this.checked);
   });
 
   // in presets.js
