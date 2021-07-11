@@ -137,9 +137,9 @@ class DrawnPoint {
     this.neighbors = []; // array containing {point,distance,drawQueued} objects
   }
 
-  update(dt, allPoints, maxDistance, maxX, maxY) {
-    this.updateLocation(dt, maxX, maxY);
-    this.updateNeighborList(allPoints, maxDistance);
+  update({ dt, points, maxDistance, maxX, maxY, friction, frictionMinV }) {
+    this.updateLocation({ dt, maxX, maxY, friction, frictionMinV });
+    this.updateNeighborList(points, maxDistance);
   }
 
   draw(ctx, lineColor, lineWidth, maxLineLength) {
@@ -237,7 +237,7 @@ class DrawnPoint {
     }
   }
 
-  updateLocation(dt, maxX, maxY) {
+  updateLocation({ dt, maxX, maxY, friction, frictionMinV }) {
     this.x += this.dx * dt;
     this.y += this.dy * dt;
 
@@ -258,17 +258,17 @@ class DrawnPoint {
       this.dx = -this.dx;
     }
 
-    if (this.dx > 0.5) {
-      this.dx -= 0.03 * dt;
+    if (this.dx > frictionMinV) {
+      this.dx -= friction * dt;
     }
-    if (this.dy > 0.5) {
-      this.dy -= 0.03 * dt;
+    if (this.dy > frictionMinV) {
+      this.dy -= friction * dt;
     }
-    if (this.dx < -0.5) {
-      this.dx += 0.03 * dt;
+    if (this.dx < -frictionMinV) {
+      this.dx += friction * dt;
     }
-    if (this.dy < -0.5) {
-      this.dy += 0.03 * dt;
+    if (this.dy < -frictionMinV) {
+      this.dy += friction * dt;
     }
   }
 
@@ -317,13 +317,16 @@ class Constellation {
       pointDensity: 30,
       maxVelocityX: 5,
       maxVelocityY: 5,
+      friction: 0.03,
+      frictionMinVelocity: 0.5,
       maxLineLength: 60,
       repelDistanceRange: [0, 20],
       repelForceRange: [0.1, 0],
       attractDistanceRange: [15, 30],
       attractForceRange: [0, 0.001],
-      maxInteractForceDistance: 60,
-      maxInteractForceStrength: 0.3,
+      interactMode: "repel",
+      maxInteractDistance: 60,
+      maxInteractForce: 0.3,
       lineColor: "lightblue",
       pointColor: "teal",
       pointInteractColor: "red",
@@ -362,13 +365,17 @@ class Constellation {
       maxVelocityX: 5,
       maxVelocityY: 5,
       maxLineLength: 60,
+      lineSize: 1,
+      friction: 0.03,
+      frictionMinVelocity: 0.5,
+      screenBlur: 0.6,
       repelDistanceRange: [0, 20],
       repelForceRange: [0.1, 0],
       attractDistanceRange: [15, 30],
       attractForceRange: [0, 0.001],
       interactMode: "repel",
-      maxInteractForceDistance: 60,
-      maxInteractForceStrength: 0.3,
+      maxInteractDistance: 60,
+      maxInteractForce: 0.3,
       lineColor: "lightblue",
       pointColor: "teal",
       pointInteractColor: "red",
@@ -383,7 +390,7 @@ class Constellation {
 
   updateSetting(settingName, value) {
     if (value === undefined || value === null) {
-      throw new Error("Value cannot be null or undefined.");
+      throw new Error(`${settingName} value cannot be empty.`);
     }
     switch (settingName) {
       case "canvasWidth":
@@ -401,13 +408,24 @@ class Constellation {
         }
         break;
       case "pointDensity":
+      case "maxLineLength":
+      case "lineSize":
+      case "friction":
+      case "frictionMinVelocity":
+      case "maxInteractDistance":
+      case "maxInteractForce":
         if (value < 0) {
           value = 0;
         }
         break;
-      case "maxLineLength":
-        if (value < 0) {
-          value = 0;
+      case "pointSize":
+        if (value < 1) {
+          value = 1;
+        }
+        break;
+      case "screenBlur":
+        if (value < 0 || value > 1) {
+          value = 0.5;
         }
         break;
       case "repelDistanceRange":
@@ -435,8 +453,16 @@ class Constellation {
       case "backgroundColor":
       case "pointColor":
       case "pointInteractColor":
+        // todo verify color
+        break;
+      case "interactMode":
+        if (value !== "attract") {
+          value = "repel";
+        }
+        break;
       case "useQueuedDraws":
       case "pingPongPhysicsUpdates":
+        value = !!value; // ensure boolean
         break;
       default:
         throw new Error(`Invalid setting name: ${settingName}`);
@@ -505,10 +531,11 @@ class Constellation {
   updateCursorInfluence(p, pCursor) {
     const dist = p.getDistanceFromPoint(pCursor);
     const settings = this.settings;
-    const maxInteractForceDistance = settings.maxInteractForceDistance;
-    const maxInteractForceStrength = settings.maxInteractForceStrength;
+    const maxInteractForceDistance = settings.maxInteractDistance;
+    const maxInteractForceStrength = settings.maxInteractForce;
     const maxVelocityX = settings.maxVelocityX;
     const maxVelocityY = settings.maxVelocityY;
+    const mode = settings.interactMode;
 
     if (dist < maxInteractForceDistance) {
       const pushForce =
@@ -517,8 +544,13 @@ class Constellation {
       const angle = p.getAngleFromPoint(pCursor);
 
       p.color = settings.pointInteractColor;
-      p.dx += Math.cos(angle) * pushForce;
-      p.dy += Math.sin(angle) * pushForce;
+      if (mode === "attract") {
+        p.dx -= Math.cos(angle) * pushForce;
+        p.dy -= Math.sin(angle) * pushForce;
+      } else {
+        p.dx += Math.cos(angle) * pushForce;
+        p.dy += Math.sin(angle) * pushForce;
+      }
 
       if (p.dx < -maxVelocityX) {
         p.dx = -maxVelocityX;
@@ -591,7 +623,7 @@ class Constellation {
     const ctx = this.context;
     const points = this.points;
     const lineColor = this.settings.lineColor;
-    const lineWidth = this.settings.lineWidth;
+    const lineWidth = this.settings.lineSize;
     const maxLineLength = this.settings.maxLineLength;
     ctx.globalAlpha = 1 - this.settings.screenBlur;
     ctx.fillStyle = this.settings.backgroundColor;
@@ -679,7 +711,15 @@ class Constellation {
     let i = this.settings.pingPongPhysicsUpdates ? this.frameCount % 2 : 0;
     for (; i < pointCount; i += increment) {
       const p = points[i];
-      p.update(dt, points, maxDistance, maxX, maxY);
+      p.update({
+        dt,
+        points,
+        maxDistance,
+        maxX,
+        maxY,
+        friction: this.settings.friction,
+        frictionMinV: this.settings.frictionMinVelocity,
+      });
       this.updatePullFromNeighbors(p);
       this.clearPointColor(p);
       if (this.touches.length === 0) {

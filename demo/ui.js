@@ -131,6 +131,42 @@ $(function () {
       useDivisor: false,
     },
     {
+      name: "Point Size",
+      settingName: "pointSize",
+      invertible: false,
+      config: {
+        range: false,
+        min: 0,
+        max: 100,
+        value: 3,
+      },
+      useDivisor: false,
+    },
+    {
+      name: "Friction",
+      settingName: "friction",
+      invertible: false,
+      config: {
+        range: false,
+        min: 0,
+        max: 10000,
+        value: 300,
+      },
+      useDivisor: true,
+    },
+    {
+      name: "Friction Min Velocity",
+      settingName: "frictionMinVelocity",
+      invertible: false,
+      config: {
+        range: false,
+        min: 0,
+        max: 10000,
+        value: 5000,
+      },
+      useDivisor: true,
+    },
+    {
       name: "Attract Distance",
       settingName: "attractDistanceRange",
       invertible: false,
@@ -192,22 +228,107 @@ $(function () {
       },
       useDivisor: false,
     },
+    {
+      name: "Line Size",
+      settingName: "lineSize",
+      invertible: false,
+      config: {
+        range: false,
+        min: 1,
+        max: 50,
+        value: 2,
+      },
+      useDivisor: false,
+    },
+    {
+      name: "Screen Blur",
+      settingName: "screenBlur",
+      invertible: false,
+      config: {
+        range: false,
+        min: 0,
+        max: 10000,
+        value: 6000,
+      },
+      useDivisor: true,
+    },
+    {
+      name: "Interact Distance",
+      settingName: "maxInteractDistance",
+      invertible: false,
+      config: {
+        range: false,
+        min: 0,
+        max: 1000,
+        value: 60,
+      },
+      useDivisor: false,
+    },
+    {
+      name: "Interact Force",
+      settingName: "maxInteractForce",
+      invertible: false,
+      config: {
+        range: false,
+        min: 1000,
+        max: 10000,
+        value: 3000,
+      },
+      useDivisor: true,
+    },
   ];
 
   settingSliders.forEach((setting) => {
     setting.update = addSettingsSlider(setting);
   });
 
-  $("#input-color-background").change(function (e) {
-    setSetting("backgroundColor", this.value);
+  function addColorPicker(setting) {
+    const settingUI = $("<div class='color-box'></div>")
+      .append(
+        $("<p></p>").append($("<label></label>").append(`${setting.name}`))
+      )
+      .append($("<input type='color' />"))
+      .appendTo($("#color-container"));
+
+    const colorPicker = settingUI.children("input");
+
+    function updateValue(value) {
+      colorPicker.val(value);
+      setSetting(setting.settingName, value);
+    }
+
+    colorPicker.on("change", (e) => {
+      setSetting(setting.settingName, e.target.value);
+    });
+
+    return updateValue;
+  }
+
+  const settingColors = [
+    {
+      name: "Back Color",
+      settingName: "backgroundColor",
+    },
+    {
+      name: "Point Color",
+      settingName: "pointColor",
+    },
+    {
+      name: "Line Color",
+      settingName: "lineColor",
+    },
+    {
+      name: "Interact Color",
+      settingName: "pointInteractColor",
+    },
+  ];
+
+  settingColors.forEach((setting) => {
+    setting.update = addColorPicker(setting);
   });
 
-  $("#input-color-point").change(function (e) {
-    setSetting("pointColor", this.value);
-  });
-
-  $("#input-color-line").change(function (e) {
-    setSetting("lineColor", this.value);
+  $("select#mode").change(function (e) {
+    setSetting("interactMode", this.value);
   });
 
   $("#queue-draws").change(function (e) {
@@ -251,18 +372,19 @@ $(function () {
           slider.update(settings[slider.settingName], false);
         }
       }
-    });
 
-    setSetting("backgroundColor", settings.backgroundColor);
-    setSetting("pointColor", settings.pointColor);
-    setSetting("lineColor", settings.lineColor);
-    $("#input-color-background").val(settings.backgroundColor);
-    $("#input-color-point").val(settings.pointColor);
-    $("#input-color-line").val(settings.lineColor);
+      settingColors.forEach((colorPicker) => {
+        colorPicker.update(settings[colorPicker.settingName]);
+      });
+
+      $("select#mode").val(settings["interactMode"]).trigger("change");
+    });
   }
 
   function setSetting(settingName, value) {
     console.log(settingName, value);
     window.constellation.updateSetting(settingName, value);
   }
+
+  setPreset(demoPresets[0].settings);
 });
