@@ -36,7 +36,7 @@ $(function () {
     if (setting.invertible) {
       $(settingUI)
         .children("p")
-        .append($("<span>invert</span>").css("float", "right"))
+        .append($("<span>Invert</span>").css("float", "right"))
         .append(
           $("<input type='checkbox' class='invert'/>")
             .prop("checked", setting.inverted)

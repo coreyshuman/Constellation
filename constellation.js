@@ -799,27 +799,21 @@ class Constellation {
   start() {
     if (this.running) return;
     this.running = true;
-    this.lastFrameTime = Date.now();
-    Statistics.initStats();
-    this.run();
+    this.lastFrameTime = 0;
+    requestAnimationFrame(this.run.bind(this));
   }
 
   stop() {
     this.running = false;
   }
 
-  run() {
-    let dt = Date.now() - this.lastFrameTime;
-    this.lastFrameTime = Date.now();
+  run(timestamp) {
+    let dt = timestamp - this.lastFrameTime;
+    this.lastFrameTime = timestamp;
 
     // if we were in the background, don't let dt run away
     if (dt > 200) {
       dt = 200;
-    }
-
-    if (this.running) {
-      requestAnimationFrame(this.run.bind(this));
-      Statistics.incrementFrameCount();
     }
 
     Statistics.startUpdate();
@@ -828,6 +822,11 @@ class Constellation {
     Statistics.startDraw();
     this.draw();
     Statistics.endDraw();
+
+    if (this.running) {
+      requestAnimationFrame(this.run.bind(this));
+      Statistics.incrementFrameCount();
+    }
   }
 
   // calculate point count based on density setting and screen size
