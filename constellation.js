@@ -164,16 +164,17 @@ class DrawnPoint {
     queue.points.push({
       x: this.x,
       y: this.y,
+      color: this.color,
     });
   }
 
   drawLines(ctx, lineColor, lineWidth, maxLineLength) {
-    let i = this.neighbors.length;
     const neighbors = this.neighbors;
+    const neighborsCount = neighbors.length;
     ctx.strokeStyle = lineColor;
     ctx.lineWidth = lineWidth;
 
-    while (i--) {
+    for (let i = 0; i < neighborsCount; i++) {
       const pd = neighbors[i];
       if (pd.distance > maxLineLength) {
         continue;
@@ -536,6 +537,7 @@ class Constellation {
 
   updatePullFromNeighbors(point) {
     const neighbors = point.neighbors;
+    const neighborsCount = neighbors.length;
     const settings = this.settings;
     const repelDistanceRange = settings.repelDistanceRange;
     const repelForceRange = settings.repelForceRange;
@@ -543,9 +545,8 @@ class Constellation {
     const attractForceRange = settings.attractForceRange;
     const maxVelocityX = settings.maxVelocityX;
     const maxVelocityY = settings.maxVelocityY;
-    let i = neighbors.length;
 
-    while (i--) {
+    for (let i = 0; i < neighborsCount; i++) {
       const p = point.neighbors[i].p;
 
       const dist = point.neighbors[i].distance;
@@ -614,7 +615,6 @@ class Constellation {
       // execute the queued draw actions
       // draw points
       ctx.strokeStyle = "rgb(0,0,0,0)";
-      ctx.fillStyle = this.settings.pointColor;
       ctx.globalAlpha = 0.9;
 
       const points = this.drawActionsQueue.points;
@@ -625,6 +625,7 @@ class Constellation {
       // so we use multiple begin/fill calls here
       for (let i = 0; i < pointsCount; i++) {
         const point = points[i];
+        ctx.fillStyle = point.color;
         ctx.beginPath();
         ctx.arc(point.x, point.y, pointSize, 0, Constellation.pi2);
         ctx.fill();
