@@ -330,10 +330,10 @@ class Constellation {
       pointColor: "teal",
       pointInteractColor: "red",
       pointSize: 3,
-      lineSize: 2,
+      lineSize: 1,
       screenBlur: 0.6,
       backgroundColor: "black",
-      useQueuedDraws: true,
+      useQueuedDraws: false,
       pingPongPhysicsUpdates: true,
     };
 
@@ -379,7 +379,7 @@ class Constellation {
       pointColor: "teal",
       pointInteractColor: "red",
       pointSize: 3,
-      lineSize: 2,
+      lineSize: 1,
       screenBlur: 0.6,
       backgroundColor: "black",
     };

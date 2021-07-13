@@ -13,44 +13,29 @@ View a demo here: https://coreyshuman.github.io/Constellation/demo
 ```html
 <html>
   <head>
+    <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <style>
       * {
         margin: 0;
         padding: 0;
       }
-      html,
-      body {
-        width: 100%;
+      #canvasdiv {
         height: 100%;
-      }
-      canvas {
-        display: block;
-      }
-
-      #fps {
-        position: fixed;
-        top: 10;
-        left: 10;
-        width: 50;
-        height: 20;
-        color: white;
       }
     </style>
   </head>
   <body>
-    <div id="canvasdiv">
-      <div id="fps"></div>
-    </div>
+    <div id="canvasdiv"></div>
     <script src="constellation.js"></script>
     <script type="text/javascript">
-      $(function () {
+      (function () {
         var constellation = new Constellation({
-          targetDiv: "canvasdiv",
+          canvasContainer: "canvasdiv",
         });
         constellation.init();
         constellation.start();
-      });
+      })();
     </script>
   </body>
 </html>
