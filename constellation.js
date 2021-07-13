@@ -127,11 +127,10 @@ class Point {
 
 /* Individual point entity, contains location, movement, and drawing functions */
 class DrawnPoint {
-  constructor(x, y, dx, dy, color, pointSize) {
+  constructor(x, y, dx, dy, color) {
     this.x = x;
     this.y = y;
     this.color = color;
-    this.pointSize = pointSize;
     this.dx = dx;
     this.dy = dy;
     this.neighbors = []; // array containing {point,distance,drawQueued} objects
@@ -142,8 +141,8 @@ class DrawnPoint {
     this.updateNeighborList(points, maxDistance);
   }
 
-  draw(ctx, lineColor, lineWidth, maxLineLength) {
-    this.drawPoint(ctx);
+  draw(ctx, pointSize, lineColor, lineWidth, maxLineLength) {
+    this.drawPoint(ctx, this.color, pointSize, pointSize);
     this.drawLines(ctx, lineColor, lineWidth, maxLineLength);
   }
 
@@ -152,11 +151,11 @@ class DrawnPoint {
     this.drawActionsQueued(queue, maxLineLength);
   }
 
-  drawPoint(ctx) {
-    ctx.fillStyle = this.color;
+  drawPoint(ctx, pointColor, pointSize) {
+    ctx.fillStyle = pointColor;
     ctx.globalAlpha = 0.9;
     ctx.beginPath();
-    ctx.arc(this.x, this.y, this.pointSize, 0, Constellation.pi2);
+    ctx.arc(this.x, this.y, pointSize, 0, Constellation.pi2);
     ctx.fill();
   }
 
@@ -399,14 +398,6 @@ class Constellation {
           value = -1;
         }
         break;
-      case "showFps":
-        value = !!value;
-        if (value && !this.this.settings.fpsElement) {
-          throw new Error(
-            `fpsElement must be configured before enabling 'showFps'`
-          );
-        }
-        break;
       case "pointDensity":
       case "maxLineLength":
       case "lineSize":
@@ -488,11 +479,7 @@ class Constellation {
     if (pointCountDiff > 0) {
       this.removePoints(pointCountDiff);
     } else {
-      this.addPoints(
-        -pointCountDiff,
-        this.settings.pointColor,
-        this.settings.pointSize
-      );
+      this.addPoints(-pointCountDiff, this.settings.pointColor);
     }
   }
 
@@ -505,21 +492,20 @@ class Constellation {
     this.points = this.points.slice(count);
   }
 
-  addPoints(count, pointColor, pointSize) {
+  addPoints(count, pointColor) {
     do {
-      this.addPoint(pointColor, pointSize);
+      this.addPoint(pointColor);
     } while (count--);
   }
 
-  addPoint(pointColor, pointSize) {
+  addPoint(pointColor) {
     this.points.push(
       new DrawnPoint(
         this.getRandomInt(1, this.canvas.width - 1),
         this.getRandomInt(1, this.canvas.height - 1),
         Math.random() * this.getRandomInt(-1, 1),
         Math.random() * this.getRandomInt(-1, 1),
-        pointColor,
-        pointSize
+        pointColor
       )
     );
   }
@@ -622,6 +608,7 @@ class Constellation {
   draw() {
     const ctx = this.context;
     const points = this.points;
+    const pointSize = this.settings.pointSize;
     const lineColor = this.settings.lineColor;
     const lineWidth = this.settings.lineSize;
     const maxLineLength = this.settings.maxLineLength;
@@ -639,7 +626,7 @@ class Constellation {
       if (this.this.settings.useQueuedDraws) {
         points[i].drawQueued(this.drawActionsQueue, maxLineLength);
       } else {
-        points[i].draw(ctx, lineColor, lineWidth, maxLineLength);
+        points[i].draw(ctx, pointSize, lineColor, lineWidth, maxLineLength);
       }
     }
 
@@ -762,8 +749,8 @@ class Constellation {
       "mousemove",
       function (evt) {
         this.cursor.update(
-          evt.pageX - this.canvasOffset.left,
-          evt.pageY - this.canvasOffset.top
+          evt.clientX - this.canvasOffset.left,
+          evt.clientY - this.canvasOffset.top
         );
       }.bind(this)
     );
@@ -777,8 +764,8 @@ class Constellation {
           const touch = ct[i];
           this.touches.push({
             identifier: touch.identifier,
-            x: touch.pageX - this.canvasOffset.left,
-            y: touch.pageY - this.canvasOffset.top,
+            x: touch.clientX - this.canvasOffset.left,
+            y: touch.clientY - this.canvasOffset.top,
           });
         }
       }.bind(this)
@@ -787,7 +774,6 @@ class Constellation {
     document.body.addEventListener(
       "touchmove",
       function (evt) {
-        //evt.preventDefault();
         const ct = evt.changedTouches;
         for (let i = 0; i < ct.length; i++) {
           const idx = this.findTouchById(ct[i].identifier);
@@ -795,8 +781,8 @@ class Constellation {
           if (idx >= 0) {
             this.touches.splice(idx, 1, {
               identifier: touch.identifier,
-              x: touch.pageX - this.canvasOffset.left,
-              y: touch.pageY - this.canvasOffset.top,
+              x: touch.clientX - this.canvasOffset.left,
+              y: touch.clientY - this.canvasOffset.top,
             });
           }
         }
@@ -806,7 +792,6 @@ class Constellation {
     document.body.addEventListener(
       "touchend",
       function (evt) {
-        //evt.preventDefault();
         const ct = evt.changedTouches;
         for (let i = 0; i < ct.length; i++) {
           const idx = this.findTouchById(ct[i].identifier);
