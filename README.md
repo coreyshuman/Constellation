@@ -1,12 +1,12 @@
 # Constellation
 
-![Constellation Banner Image](/docs/images/banner.gif)
+<img src="./docs/images/banner.gif" alt="Constellation Banner Image" width="100%">
 
 A configurable physics-based animation in JavaScript which can produce many designs and effects, including constellation-like star fields. You can interact with the animation using the mouse or multiple touch points on touch devices.
 
 View a demo here: https://coreyshuman.github.io/Constellation/demo
 
-![Demo Collage](/docs/images/collage.png)
+<img src="./docs/images/collage.png" alt="Demo Collage" width="100%">
 
 ## Example Usage:
 
